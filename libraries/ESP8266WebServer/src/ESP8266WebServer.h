@@ -264,6 +264,9 @@ protected:
 	String           _sopaque;
 	String           _srealm;  // Store the Auth realm between Calls
 
+
+private:
+	String			_request;
 };
 
 

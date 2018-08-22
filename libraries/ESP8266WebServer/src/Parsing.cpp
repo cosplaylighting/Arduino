@@ -25,7 +25,7 @@
 #include "ESP8266WebServer.h"
 #include "detail/mimetable.h"
 
-//#define DEBUG_ESP_HTTP_SERVER
+#define DEBUG_ESP_HTTP_SERVER
 #ifdef DEBUG_ESP_PORT
 #define DEBUG_OUTPUT DEBUG_ESP_PORT
 #else
@@ -79,7 +79,7 @@ static char *readBytesWithTimeout(WiFiClient& client, size_t maxLength, size_t& 
 // NOTE: WE DON'T TOUCH _requestBuffer BECAUSE OF A BUFFER REUSE OPTIMIZATION
 ////////////////////////////////////////////////////////////////////////////////
 void ESP8266WebServer::resetRequest() {
-	_method		= HTTP_ANY;
+	_method				= HTTP_ANY;
 	_requestMethod		= nullptr;
 	_requestPath		= nullptr;
 	_requestParams		= nullptr;
@@ -102,19 +102,21 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 	resetRequest();
 
 	// READ THE FIRST LINE OF HTTP REQUEST
-	String req = client.readStringUntil('\r');
-	client.readStringUntil('\n');
+	//TODO: READ LITERALLY EVERYTHING
+	//SINGLE BUFFER, PARSE IT OUT USING AWESOMENESS
+	//String req = client.readStringUntil('\r');
+	//client.readStringUntil('\n');
+	_request = client.readString();
 
-	// FREE BUFFER AND ALLOCATE A NEW ONE - REUSE BUFFER IF POSSIBLE
-	_requestBuffer = (char*) vealloc(_requestBuffer, req.length() + 1);
+#	ifdef DEBUG_ESP_HTTP_SERVER
+		Serial.println("REQUEST:");
+		Serial.println(_request);
+#	endif
 
-	//NOT ENOUGH RAM TO ALLOCATE BUFFER
-	if (!_requestBuffer) return false;
-
-
-	//COPY BUFFER
-	strcpy(_requestBuffer, req.c_str());
-	_requestMethod = _requestBuffer;
+	//REFERENCE TO BUFFER BUFFER
+	_requestMethod =
+	_requestBuffer =
+		(char*) _request.c_str();
 
 
 	//FIND REQUEST PATH AND VERSION
@@ -129,6 +131,11 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 				break;
 			}
 
+		} else if (*buf == '\r'  ||  *buf == '\n') {
+			*buf++ = NULL;
+			if (*buf == '\r'  ||  *buf == '\n') *buf++ = NULL;
+			break;
+
 		} else if (*buf == '?') {
 			if (_requestPath  &&  !_requestParams  &&  !_requestVersion) {
 				*buf++ = NULL;
@@ -141,6 +148,25 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 	//NOT WELL FORMATTED REQUEST HEADER
 	if (!_requestVersion) return false;
 
+
+
+	//TODO: PROCESS HEADERS HERE NOW
+
+
+
+#	ifdef DEBUG_ESP_HTTP_SERVER
+		DEBUG_OUTPUT.print("Method: --");
+		DEBUG_OUTPUT.print(_requestMethod);
+		DEBUG_OUTPUT.println("--");
+
+		DEBUG_OUTPUT.print("Path: --");
+		DEBUG_OUTPUT.print(_requestPath);
+		DEBUG_OUTPUT.println("--");
+
+		DEBUG_OUTPUT.print("Version: --");
+		DEBUG_OUTPUT.print(_requestVersion);
+		DEBUG_OUTPUT.println("--");
+#	endif
 
 	//PARSE REQUEST METHOD
 	if (!strcmp(_requestMethod, "GET")) {
@@ -176,131 +202,138 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 	String formData;
 
 	// below is needed only when POST type request
-	if (_method == HTTP_POST  ||  _method == HTTP_PUT  ||
-		_method == HTTP_PATCH ||  _method == HTTP_DELETE) {
-
-		String boundaryStr;
-		String headerName;
-		String headerValue;
-		bool isForm = false;
-		bool isEncoded = false;
-		uint32_t contentLength = 0;
-		//parse headers
-
-		while (true) {
-			req = client.readStringUntil('\r');
-			client.readStringUntil('\n');
-
-			if (req == "") break;//no moar headers
-			int headerDiv = req.indexOf(':');
-			if (headerDiv == -1) break;
-
-			headerName = req.substring(0, headerDiv);
-			headerValue = req.substring(headerDiv + 1);
-			headerValue.trim();
-			_collectHeader(headerName.c_str(),headerValue.c_str());
-
-			#ifdef DEBUG_ESP_HTTP_SERVER
-			DEBUG_OUTPUT.print("headerName: ");
-			DEBUG_OUTPUT.println(headerName);
-			DEBUG_OUTPUT.print("headerValue: ");
-			DEBUG_OUTPUT.println(headerValue);
-			#endif
-
-			if (headerName.equalsIgnoreCase(FPSTR(Content_Type))) {
-				using namespace mime;
-				if (headerValue.startsWith(FPSTR(mimeTable[txt].mimeType))) {
-					isForm = false;
-				} else if (headerValue.startsWith(F("application/x-www-form-urlencoded"))) {
-					isForm = false;
-					isEncoded = true;
-				} else if (headerValue.startsWith(F("multipart/"))) {
-					boundaryStr = headerValue.substring(headerValue.indexOf('=') + 1);
-					boundaryStr.replace("\"","");
-					isForm = true;
-				}
-
-			} else if (headerName.equalsIgnoreCase(F("Content-Length"))) {
-				contentLength = headerValue.toInt();
-
-			} else if (headerName.equalsIgnoreCase(F("Host"))) {
-				_hostHeader = headerValue;
-			}
-		}
-
-		if (!isForm) {
-			size_t plainLength;
-			char* plainBuf = readBytesWithTimeout(client, contentLength, plainLength, HTTP_MAX_POST_WAIT);
-
-			if (plainLength < contentLength) {
-				free(plainBuf);
-				return false;
-			}
-
-			if (contentLength > 0) {
-				if(isEncoded){
-					_parseArguments(plainBuf, false);
-
-				} else {
-					//plain post json or other data
-					RequestArgument& arg = _currentArgs[_currentArgCount++];
-					arg.key = F("plain");
-					arg.value = String(plainBuf);
-				}
-
-#				ifdef DEBUG_ESP_HTTP_SERVER
-					DEBUG_OUTPUT.print("Plain: ");
-					DEBUG_OUTPUT.println(plainBuf);
-#				endif
-
-				free(plainBuf);
-			}
-		}
-
-		if (isForm) {
-			if (!_parseForm(client, boundaryStr, contentLength)) {
-				return false;
-			}
-		}
+	switch (_method) {
+		case HTTP_POST:
+		case HTTP_PUT:
+		case HTTP_PATCH:
+		case HTTP_DELETE:
 
 
-	} else {
-		String headerName;
-		String headerValue;
-		//parse headers
-		while(1){
-			req = client.readStringUntil('\r');
-			client.readStringUntil('\n');
-			if (req == "") break;//no moar headers
-			int headerDiv = req.indexOf(':');
-			if (headerDiv == -1){
-				break;
-			}
-			headerName = req.substring(0, headerDiv);
-			headerValue = req.substring(headerDiv + 2);
-			_collectHeader(headerName.c_str(),headerValue.c_str());
+			String boundaryStr;
+			String headerName;
+			String headerValue;
+			bool isForm = false;
+			bool isEncoded = false;
+			uint32_t contentLength = 0;
+			//parse headers
 
-#			ifdef DEBUG_ESP_HTTP_SERVER
+			while (true) {
+				req = client.readStringUntil('\r');
+				client.readStringUntil('\n');
+
+				if (req == "") break;//no moar headers
+				int headerDiv = req.indexOf(':');
+				if (headerDiv == -1) break;
+
+				headerName = req.substring(0, headerDiv);
+				headerValue = req.substring(headerDiv + 1);
+				headerValue.trim();
+				_collectHeader(headerName.c_str(),headerValue.c_str());
+
+				#ifdef DEBUG_ESP_HTTP_SERVER
 				DEBUG_OUTPUT.print("headerName: ");
 				DEBUG_OUTPUT.println(headerName);
 				DEBUG_OUTPUT.print("headerValue: ");
 				DEBUG_OUTPUT.println(headerValue);
-#			endif
+				#endif
 
-			if (headerName.equalsIgnoreCase("Host")){
-				_hostHeader = headerValue;
+				if (headerName.equalsIgnoreCase(FPSTR(Content_Type))) {
+					using namespace mime;
+					if (headerValue.startsWith(FPSTR(mimeTable[txt].mimeType))) {
+						isForm = false;
+					} else if (headerValue.startsWith(F("application/x-www-form-urlencoded"))) {
+						isForm = false;
+						isEncoded = true;
+					} else if (headerValue.startsWith(F("multipart/"))) {
+						boundaryStr = headerValue.substring(headerValue.indexOf('=') + 1);
+						boundaryStr.replace("\"","");
+						isForm = true;
+					}
+
+				} else if (headerName.equalsIgnoreCase(F("Content-Length"))) {
+					contentLength = headerValue.toInt();
+
+				} else if (headerName.equalsIgnoreCase(F("Host"))) {
+					_hostHeader = headerValue;
+				}
 			}
+
+			if (!isForm) {
+				size_t plainLength;
+				char* plainBuf = readBytesWithTimeout(client, contentLength, plainLength, HTTP_MAX_POST_WAIT);
+
+				if (plainLength < contentLength) {
+					free(plainBuf);
+					return false;
+				}
+
+				if (contentLength > 0) {
+					if (isEncoded){
+						_parseArguments(plainBuf, false);
+
+					} else {
+						//plain post json or other data
+						RequestArgument& arg = _currentArgs[_currentArgCount++];
+						arg.key = "plain";
+						//arg.value = String(plainBuf);
+						//TODO: THIS NEEDS FIXED!
+					}
+
+#					ifdef DEBUG_ESP_HTTP_SERVER
+						DEBUG_OUTPUT.print("Plain: ");
+						DEBUG_OUTPUT.println(plainBuf);
+#					endif
+
+					free(plainBuf);
+				}
+			}
+
+			if (isForm) {
+				if (!_parseForm(client, boundaryStr, contentLength)) {
+					return false;
+				}
+			}
+		break;
+
+
+		default:
+			String headerName;
+			String headerValue;
+			//parse headers
+			while (true) {
+				req = client.readStringUntil('\r');
+				client.readStringUntil('\n');
+				if (req == "") break;//no moar headers
+				int headerDiv = req.indexOf(':');
+				if (headerDiv == -1){
+					break;
+				}
+				headerName = req.substring(0, headerDiv);
+				headerValue = req.substring(headerDiv + 2);
+				_collectHeader(headerName.c_str(),headerValue.c_str());
+
+#				ifdef DEBUG_ESP_HTTP_SERVER
+					DEBUG_OUTPUT.print("headerName: ");
+					DEBUG_OUTPUT.println(headerName);
+					DEBUG_OUTPUT.print("headerValue: ");
+					DEBUG_OUTPUT.println(headerValue);
+#				endif
+
+				if (headerName.equalsIgnoreCase("Host")) {
+					_hostHeader = headerValue;
+				}
+			break;
 		}
 		_parseArguments(_requestParams);
 	}
 	client.flush();
 
-#ifdef DEBUG_ESP_HTTP_SERVER
-	DEBUG_OUTPUT.print("Request: ");
-	DEBUG_OUTPUT.println(url);
-	DEBUG_OUTPUT.print(" Arguments: ");
-	DEBUG_OUTPUT.println(_requestParams);
-#endif
+#	ifdef DEBUG_ESP_HTTP_SERVER
+//		DEBUG_OUTPUT.print("Request: ");
+//		DEBUG_OUTPUT.println(url);
+		DEBUG_OUTPUT.print(" Arguments: ");
+		DEBUG_OUTPUT.println(_requestParams);
+#	endif
 
 	return true;
 }
@@ -311,10 +344,10 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 ////////////////////////////////////////////////////////////////////////////////
 // ??
 ////////////////////////////////////////////////////////////////////////////////
-bool ESP8266WebServer::_collectHeader(const char* headerName, const char* headerValue) {
+bool ESP8266WebServer::_collectHeader(const char *headerName, const char *headerValue) {
 	for (int i = 0; i < _headerKeysCount; i++) {
-		if (_currentHeaders[i].key.equalsIgnoreCase(headerName)) {
-			_currentHeaders[i].value=headerValue;
+		if (!strcasecmp(_currentHeaders[i].key, headerName)) {
+			_currentHeaders[i].value = headerValue;
 			return true;
 		}
 	}
@@ -471,7 +504,7 @@ bool ESP8266WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t 
 	if (line == ("--"+boundary)){
 		RequestArgument* postArgs = new RequestArgument[32];
 		int postArgsLen = 0;
-		while(1){
+		while(1) {
 			String argName;
 			String argValue;
 			String argType;
@@ -480,12 +513,12 @@ bool ESP8266WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t 
 
 			line = client.readStringUntil('\r');
 			client.readStringUntil('\n');
-			if (line.length() > 19 && line.substring(0, 19).equalsIgnoreCase(F("Content-Disposition"))){
+			if (line.length() > 19 && line.substring(0, 19).equalsIgnoreCase(F("Content-Disposition"))) {
 				int nameStart = line.indexOf('=');
-				if (nameStart != -1){
+				if (nameStart != -1) {
 					argName = line.substring(nameStart+2);
 					nameStart = argName.indexOf('=');
-					if (nameStart == -1){
+					if (nameStart == -1) {
 						argName = argName.substring(0, argName.length() - 1);
 					} else {
 						argFilename = argName.substring(nameStart+2, argName.length() - 1);
@@ -496,8 +529,9 @@ bool ESP8266WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t 
 						DEBUG_OUTPUT.println(argFilename);
 #endif
 						//use GET to set the filename if uploading using blob
-						if (argFilename == F("blob") && hasArg(FPSTR(filename)))
+						if (!strcmp(argFilename.c_str(), "blob") && hasArg(filename)) {
 							argFilename = arg(FPSTR(filename));
+						}
 					}
 #ifdef DEBUG_ESP_HTTP_SERVER
 					DEBUG_OUTPUT.print("PostArg Name: ");
@@ -518,7 +552,7 @@ bool ESP8266WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t 
 					DEBUG_OUTPUT.println(argType);
 #endif
 					if (!argIsFile){
-						while(1){
+						while(1) {
 							line = client.readStringUntil('\r');
 							client.readStringUntil('\n');
 							if (line.startsWith("--"+boundary)) break;
@@ -532,8 +566,9 @@ bool ESP8266WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t 
 #endif
 
 						RequestArgument& arg = postArgs[postArgsLen++];
-						arg.key = argName;
-						arg.value = argValue;
+						//arg.key = argName;
+						//arg.value = argValue;
+						//TODO fix these!
 
 						if (line == ("--"+boundary+"--")){
 #ifdef DEBUG_ESP_HTTP_SERVER
