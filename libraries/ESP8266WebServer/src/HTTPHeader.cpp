@@ -5,16 +5,6 @@
 
 
 
-
-////////////////////////////////////////////////////////////////////////////////
-// OUR REFERENCE TO OURSELF. THIS IS AN ARRAY OF HTTPHEADER OBJECTS
-////////////////////////////////////////////////////////////////////////////////
-int			HTTPHeader::count	= 0;
-HTTPHeader *HTTPHeader::headers	= nullptr;
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // CALCULATE THE TOTAL NUMBER OF HEADER ROWS
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,34 +84,6 @@ char *HTTPHeader::_parse(char *buffer) {
 // PROCESS THE BUFFER
 ////////////////////////////////////////////////////////////////////////////////
 char *HTTPHeader::process(char *buffer) {
-	if (headers) {
-		delete[] headers;
-		headers = nullptr;
-	}
-
-	count = _count(buffer);
-
-	if (!count) return buffer;
-
-	headers = new HTTPHeader [count];
-
+	allocate(_count(buffer));
 	return _parse(buffer);
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// GET A HEADER BASED ON NAME
-////////////////////////////////////////////////////////////////////////////////
-HTTPHeader *HTTPHeader::get(const char *name) {
-	if (name == nullptr  ||  *name == NULL) return nullptr;
-
-	for (auto i=0; i<count; i++) {
-		if (strcasecmp(headers[i].key, name) == 0) {
-			return &headers[i];
-		}
-	}
-
-	return nullptr;
 }
