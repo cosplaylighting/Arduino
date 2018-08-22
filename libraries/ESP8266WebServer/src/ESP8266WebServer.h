@@ -31,6 +31,7 @@
 #include <ESP8266WiFi.h>
 
 #include "ESP8266WebServerHelper.h"
+#include "HTTPHeader.h"
 
 
 
@@ -61,7 +62,7 @@ public:
 	void on(const String &uri, HTTPMethod method, THandlerFunction fn);
 	void on(const String &uri, HTTPMethod method, THandlerFunction fn, THandlerFunction ufn);
 	void addHandler(RequestHandler* handler);
-	void serveStatic(const char* uri, fs::FS& fs, const char* path, const char* cache_header = NULL );
+	void serveStatic(const char* uri, fs::FS& fs, const char* path, const char* cache_header=NULL);
 	void onNotFound(THandlerFunction fn);  //called when handler is not assigned
 	void onFileUpload(THandlerFunction fn); //handle file uploads
 
@@ -117,49 +118,49 @@ public:
 	////////////////////////////////////////////////////////////////////////////
 
 	// get header count
-	int headers() const {
-		return _headerKeysCount;
+	inline int headers() const {
+		return HTTPHeader::total();
 	}
 
 
 
-	// SET THE REQUEST HEADERS TO COLLECT
-	void collectHeaders(const char* headerKeys[], const size_t headerKeysCount);
-
-
-
 	// GET REQUEST HEADER VALUE BY NAME
-	const char *header(const char *name) const;
+	inline const char *header(const char *name) const {
+		HTTPHeader *header = HTTPHeader::get(name);
+		return header ? header->value : "";
+	}
 
-	String header(String name) const {
+	inline String header(String name) const {
 		return String((const char*)this->header(name.c_str()));
 	}
 
 
 
 	// GET REQUEST HEADER VALUE BY NUMBER
-	const char *header(int i) const;
+	inline const char *header(int id) const {
+		HTTPHeader *header = HTTPHeader::get(id);
+		return header ? header->value : "";
+	}
 
 
 
 	// GET REQUEST HEADER NAME BY NUMBER
-	const char *headerName(int i) const;
+	inline const char *headerName(int id) const {
+		HTTPHeader *header = HTTPHeader::get(id);
+		return header ? header->key : "";
+	}
 
 
 
 	// CHECK IF HEADER EXISTS
-	bool hasHeader(const char *name) const;
-
-	bool hasHeader(String name) const {
-		return this->hasHeader(name.c_str());
+	inline bool hasHeader(const char *name) const {
+		return HTTPHeader::has(name);
 	}
 
-
-
-	// GET REQUEST HOST HEADER IF AVAILABLE OR EMPTY STRING IF NOT
-	String hostHeader() const {
-		return _hostHeader;
+	inline bool hasHeader(String name) const {
+		return HTTPHeader::has(name);
 	}
+
 
 
 
@@ -217,8 +218,9 @@ protected:
 	bool _parseFormUploadAborted();
 	void _uploadWriteByte(uint8_t b);
 	uint8_t _uploadReadByte(WiFiClient& client);
+
+	//THIS IS A RESPONSE HEADER, NOT A REQUEST HEADER
 	void _prepareHeader(String& response, int code, const char* content_type, size_t contentLength);
-	bool _collectHeader(const char* headerName, const char* headerValue);
 
 	void _streamFileCore(const size_t fileSize, const String & fileName, const String & contentType);
 
@@ -234,7 +236,6 @@ protected:
 	char *_requestPath;
 	char *_requestParams;
 	char *_requestVersion;
-	char *_requestHeaders;
 
 	void resetRequest();
 
@@ -258,12 +259,9 @@ protected:
 	RequestArgument* _currentArgs;
 	std::unique_ptr<HTTPUpload> _currentUpload;
 
-	int              _headerKeysCount;
-	RequestArgument* _currentHeaders;
 	size_t           _contentLength;
 	String           _responseHeaders;
 
-	String           _hostHeader;
 	bool             _chunked;
 
 	String           _snonce;  // Store noance and opaque for future comparison

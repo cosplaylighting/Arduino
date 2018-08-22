@@ -56,8 +56,6 @@ void ESP8266WebServer::_init() {
 	_lastHandler		= nullptr;
 	_currentArgCount	= 0;
 	_currentArgs		= nullptr;
-	_headerKeysCount	= 0;
-	_currentHeaders		= nullptr;
 	_contentLength		= 0;
 	_chunked			= false;
 
@@ -94,9 +92,7 @@ ESP8266WebServer::ESP8266WebServer(int port) : _server(port) {
 ESP8266WebServer::~ESP8266WebServer() {
 	_server.close();
 
-	if (_currentHeaders) {
-		delete[]_currentHeaders;
-	}
+	HTTPHeader::reset();
 
 	RequestHandler* handler = _firstHandler;
 
@@ -328,7 +324,7 @@ void ESP8266WebServer::on(const String &uri, HTTPMethod method, ESP8266WebServer
 // ??
 ////////////////////////////////////////////////////////////////////////////////
 void ESP8266WebServer::addHandler(RequestHandler* handler) {
-		_addRequestHandler(handler);
+	_addRequestHandler(handler);
 }
 
 
@@ -437,9 +433,7 @@ void ESP8266WebServer::handleClient() {
 void ESP8266WebServer::close() {
 	_server.close();
 	_currentStatus = HC_NONE;
-	if (!_headerKeysCount) {
-		collectHeaders(0, 0);
-	}
+	resetRequest();
 }
 
 
@@ -459,6 +453,7 @@ void ESP8266WebServer::stop() {
 // ??
 ////////////////////////////////////////////////////////////////////////////////
 void ESP8266WebServer::sendHeader(const String& name, const String& value, bool first) {
+	//TODO: CHANGE THIS TO A SINGLE FIXED LENGTH BUFFER
 	String headerLine = name;
 	headerLine += F(": ");
 	headerLine += value;
@@ -501,15 +496,18 @@ void ESP8266WebServer::_prepareHeader(String& response, int code, const char* co
 
 	sendHeader(String(F("Content-Type")), String(FPSTR(content_type)), true);
 	if (_contentLength == CONTENT_LENGTH_NOT_SET) {
-			sendHeader(String(FPSTR(Content_Length)), String(contentLength));
+		sendHeader(String(FPSTR(Content_Length)), String(contentLength));
+
 	} else if (_contentLength != CONTENT_LENGTH_UNKNOWN) {
-			sendHeader(String(FPSTR(Content_Length)), String(_contentLength));
+		sendHeader(String(FPSTR(Content_Length)), String(_contentLength));
+
 	} else if(_contentLength == CONTENT_LENGTH_UNKNOWN && _currentVersion) { //HTTP/1.1 or above client
 		//let's do chunked
 		_chunked = true;
 		sendHeader(String(F("Accept-Ranges")),String(F("none")));
 		sendHeader(String(F("Transfer-Encoding")),String(F("chunked")));
 	}
+
 	sendHeader(String(F("Connection")), String(F("close")));
 
 	response += _responseHeaders;
@@ -721,82 +719,6 @@ bool ESP8266WebServer::hasArg(const char *name) const {
 	for (int i=0; i<_currentArgCount; i++) {
 		if (!strcmp(_currentArgs[i].key, name)) {
 			return true;
-		}
-	}
-	return false;
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// ??
-////////////////////////////////////////////////////////////////////////////////
-const char *ESP8266WebServer::header(const char *name) const {
-	if (!name  ||  !*name) return "";
-	for (int i=0; i<_headerKeysCount; i++) {
-		if (!strcasecmp(_currentHeaders[i].key, name)) {
-			return _currentHeaders[i].value;
-		}
-	}
-	return "";
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// ??
-////////////////////////////////////////////////////////////////////////////////
-void ESP8266WebServer::collectHeaders(const char* headerKeys[], const size_t headerKeysCount) {
-	_headerKeysCount = headerKeysCount + 1;
-	if (_currentHeaders) {
-		delete[] _currentHeaders;
-	}
-	_currentHeaders = new RequestArgument[_headerKeysCount];
-	_currentHeaders[0].key = (AUTHORIZATION_HEADER);
-	for (int i = 1; i < _headerKeysCount; i++) {
-		_currentHeaders[i].key = headerKeys[i-1];
-	}
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// ??
-////////////////////////////////////////////////////////////////////////////////
-const char *ESP8266WebServer::header(int i) const {
-	return (i < _headerKeysCount)
-		? _currentHeaders[i].value
-		: "";
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// ??
-////////////////////////////////////////////////////////////////////////////////
-const char *ESP8266WebServer::headerName(int i) const {
-	return (i < _headerKeysCount)
-		? _currentHeaders[i].key
-		: "";
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// ??
-////////////////////////////////////////////////////////////////////////////////
-bool ESP8266WebServer::hasHeader(const char *name) const {
-	if (!name  ||  !*name) return false;
-	for (int i=0; i<_headerKeysCount; i++) {
-		if (!strcasecmp(_currentHeaders[i].key, name)) {
-			if (_currentHeaders[i].value) {
-				return true;
-			}
 		}
 	}
 	return false;

@@ -1,14 +1,16 @@
 
 
-#include "ESP8266WebServerHeader.h"
+#include <Arduino.h>
+#include "HTTPHeader.h"
+
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // OUR REFERENCE TO OURSELF. THIS IS AN ARRAY OF HTTPHEADER OBJECTS
 ////////////////////////////////////////////////////////////////////////////////
-HTTPHeader::count	= 0;
-HTTPHeader::headers	= nullptr;
+int			HTTPHeader::count	= 0;
+HTTPHeader *HTTPHeader::headers	= nullptr;
 
 
 
@@ -16,7 +18,7 @@ HTTPHeader::headers	= nullptr;
 ////////////////////////////////////////////////////////////////////////////////
 // CALCULATE THE TOTAL NUMBER OF HEADER ROWS
 ////////////////////////////////////////////////////////////////////////////////
-static int HTTPHeader::_count(const char *buffer) {
+int HTTPHeader::_count(const char *buffer) {
 	if (buffer == nullptr) return 0;
 
 	int total = 0;
@@ -42,10 +44,10 @@ static int HTTPHeader::_count(const char *buffer) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// ARSE AND TOKENIZE THE BUFFER
+// PARSE AND TOKENIZE THE BUFFER
 ////////////////////////////////////////////////////////////////////////////////
-static char *HTTPHeader::_parse(char *buffer) {
-	if (buffer == nullptr) return;
+char *HTTPHeader::_parse(char *buffer) {
+	if (buffer == nullptr) return buffer;
 
 	const char *header_key		= buffer;
 	const char *header_value	= nullptr;
@@ -87,10 +89,11 @@ static char *HTTPHeader::_parse(char *buffer) {
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // PROCESS THE BUFFER
 ////////////////////////////////////////////////////////////////////////////////
-static char *HTTPHeader::process(char *buffer) {
+char *HTTPHeader::process(char *buffer) {
 	if (headers) {
 		delete[] headers;
 		headers = nullptr;
@@ -98,9 +101,27 @@ static char *HTTPHeader::process(char *buffer) {
 
 	count = _count(buffer);
 
-	if (!count) return;
+	if (!count) return buffer;
 
 	headers = new HTTPHeader [count];
 
-	_parse(_buffer);
+	return _parse(buffer);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// GET A HEADER BASED ON NAME
+////////////////////////////////////////////////////////////////////////////////
+HTTPHeader *HTTPHeader::get(const char *name) {
+	if (name == nullptr  ||  *name == NULL) return nullptr;
+
+	for (auto i=0; i<count; i++) {
+		if (strcasecmp(headers[i].key, name) == 0) {
+			return &headers[i];
+		}
+	}
+
+	return nullptr;
 }

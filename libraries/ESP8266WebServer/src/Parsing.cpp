@@ -93,7 +93,7 @@ void ESP8266WebServer::resetRequest() {
 	_requestPath		= nullptr;
 	_requestParams		= nullptr;
 	_requestVersion		= nullptr;
-	_requestHeaders		= nullptr;
+	HTTPHeader::reset();
 }
 
 
@@ -104,9 +104,6 @@ void ESP8266WebServer::resetRequest() {
 ////////////////////////////////////////////////////////////////////////////////
 bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 	//RESET HEADER VALUE
-	for (int i=0; i<_headerKeysCount; i++) {
-		_currentHeaders[i].value = "";
-	}
 
 	//RESET ALL REQUEST VARIABLES
 	resetRequest();
@@ -160,38 +157,8 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 
 
 
-
-	//CALCULATE THE NUMBER OF HEADERS
-	const char *tmp = buf;
-	int header_count = 0;
-
-	while (*tmp) {
-		if (tmp[0] == '\r'  &&  tmp[1] == '\n') {
-			header_count++;
-			tmp += 2;
-
-			if (tmp[0] == '\r'  &&  tmp[1] == '\n') {
-				break;
-			}
-
-		} else {
-			tmp++;
-		}
-	}
-
-
-
-
-	//CREATE STORAGE FOR HEADER POINTERS
-	_currentHeaders = new RequestArgument[header_count];
-
-
-
-
 	//PROCESS HEADERS
-	_requestHeaders				= buf;
-	//do all the new header shit HERE!!
-
+	buf = HTTPHeader::process(buf);
 
 
 
@@ -401,22 +368,6 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 #	endif
 
 	return true;
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// ??
-////////////////////////////////////////////////////////////////////////////////
-bool ESP8266WebServer::_collectHeader(const char *headerName, const char *headerValue) {
-	for (int i = 0; i < _headerKeysCount; i++) {
-		if (!strcasecmp(_currentHeaders[i].key, headerName)) {
-			_currentHeaders[i].value = headerValue;
-			return true;
-		}
-	}
-	return false;
 }
 
 
