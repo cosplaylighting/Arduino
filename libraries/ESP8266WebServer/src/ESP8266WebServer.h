@@ -21,48 +21,16 @@
 */
 
 
-#ifndef ESP8266WEBSERVER_H
-#define ESP8266WEBSERVER_H
+#ifndef __ESP8266_WEB_SERVER_H__
+#define __ESP8266_WEB_SERVER_H__
+
+
 
 #include <functional>
 #include <memory>
 #include <ESP8266WiFi.h>
 
-enum HTTPMethod { HTTP_ANY, HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_PATCH, HTTP_DELETE, HTTP_OPTIONS };
-enum HTTPUploadStatus { UPLOAD_FILE_START, UPLOAD_FILE_WRITE, UPLOAD_FILE_END,
-												UPLOAD_FILE_ABORTED };
-enum HTTPClientStatus { HC_NONE, HC_WAIT_READ, HC_WAIT_CLOSE };
-enum HTTPAuthMethod { BASIC_AUTH, DIGEST_AUTH };
-
-#define HTTP_DOWNLOAD_UNIT_SIZE 1460
-
-#ifndef HTTP_UPLOAD_BUFLEN
-#define HTTP_UPLOAD_BUFLEN 2048
-#endif
-
-#define HTTP_MAX_DATA_WAIT 5000 //ms to wait for the client to send the request
-#define HTTP_MAX_POST_WAIT 5000 //ms to wait for POST data to arrive
-#define HTTP_MAX_SEND_WAIT 5000 //ms to wait for data chunk to be ACKed
-#define HTTP_MAX_CLOSE_WAIT 2000 //ms to wait for the client to close the connection
-
-#define CONTENT_LENGTH_UNKNOWN ((size_t) -1)
-#define CONTENT_LENGTH_NOT_SET ((size_t) -2)
-
-class ESP8266WebServer;
-
-typedef struct {
-	HTTPUploadStatus status;
-	String  filename;
-	String  name;
-	String  type;
-	size_t  totalSize;    // file size
-	size_t  currentSize;  // size of data currently in buf
-	uint8_t buf[HTTP_UPLOAD_BUFLEN];
-} HTTPUpload;
-
-#include "detail/RequestHandler.h"
-
-namespace fs { class FS; }
+#include "ESP8266WebServerHelper.h"
 
 
 
@@ -110,24 +78,36 @@ public:
 	////////////////////////////////////////////////////////////////////////////
 
 	// GET ARGUMENTS COUNT
-	int args() const { return _currentArgCount; }
+	int args() const {
+		return _currentArgCount;
+	}
 
 
 	// GET REQUEST ARGUMENT VALUE BY NAME
-	String arg(String name) const { return this->arg(name.c_str()); }
 	const char *arg(const char *name) const;
+
+	inline String arg(String name) const {
+		return this->arg(name.c_str());
+	}
+
 
 
 	// GET REQUEST ARGUMENT VALUE BY NUMBER
 	const char *arg(int i) const;
 
 
+
 	// GET REQUEST ARGUMENT NAME BY NUMBER
 	const char *argName(int i) const;
 
 
+
 	// CHECK IF ARGUMENT EXISTS
 	bool hasArg(const char *name) const;
+
+	inline bool hasArg(String name) const {
+		return this->hasArg(name.c_str());
+	}
 
 
 
@@ -137,41 +117,64 @@ public:
 	////////////////////////////////////////////////////////////////////////////
 
 	// get header count
-	int headers() const { return _headerKeysCount; }
+	int headers() const {
+		return _headerKeysCount;
+	}
+
 
 
 	// SET THE REQUEST HEADERS TO COLLECT
 	void collectHeaders(const char* headerKeys[], const size_t headerKeysCount);
 
 
+
 	// GET REQUEST HEADER VALUE BY NAME
-	String header(String name) const { return String((const char*)this->header(name.c_str())); }
 	const char *header(const char *name) const;
+
+	String header(String name) const {
+		return String((const char*)this->header(name.c_str()));
+	}
+
 
 
 	// GET REQUEST HEADER VALUE BY NUMBER
 	const char *header(int i) const;
 
 
+
 	// GET REQUEST HEADER NAME BY NUMBER
 	const char *headerName(int i) const;
 
 
+
 	// CHECK IF HEADER EXISTS
-	bool hasHeader(String name) const { return this->hasHeader(name.c_str()); }
 	bool hasHeader(const char *name) const;
+
+	bool hasHeader(String name) const {
+		return this->hasHeader(name.c_str());
+	}
+
 
 
 	// GET REQUEST HOST HEADER IF AVAILABLE OR EMPTY STRING IF NOT
-	String hostHeader() const { return _hostHeader; }
+	String hostHeader() const {
+		return _hostHeader;
+	}
 
 
 
 
-	// send response to the client
-	// code - HTTP response code, can be 200 or 404
-	// content_type - HTTP content type, like "text/plain" or "image/png"
-	// content - actual content body
+	////////////////////////////////////////////////////////////////////////////
+	// RESPONSE DATA SENT BACK TO CLIENT
+	//
+	// INT CODE = 200 OK
+	// INT CODE = 404 ERROR NOT FOUND
+	// FULL LIST: https://en.wikipedia.org/wiki/List_of_HTTP_status_codes
+	//
+	// CONTENT TYPE = "text/plain"
+	// CONTENT TYPE = "text/html"
+	////////////////////////////////////////////////////////////////////////////
+
 	void send(int code, const char* content_type = NULL, const String& content = String(""));
 	void send(int code, char* content_type, const String& content);
 	void send(int code, const String& content_type, const String& content);
@@ -184,13 +187,22 @@ public:
 	void sendContent_P(PGM_P content);
 	void sendContent_P(PGM_P content, size_t size);
 
-	static char *urlDecode(char *text, int len=0x7fffffff);
 
 	template<typename T>
 	size_t streamFile(T &file, const String& contentType) {
 		_streamFileCore(file.size(), file.name(), contentType);
 		return _currentClient.write(file);
 	}
+
+
+
+
+	////////////////////////////////////////////////////////////////////////////
+	// FAST MEMORY INPLACE URL ENCODING DECODER
+	////////////////////////////////////////////////////////////////////////////
+	static char *urlDecode(char *text, int len=0x7fffffff);
+
+
 
 protected:
 	virtual size_t _currentClientWrite(const char* b, size_t l) { return _currentClient.write( b, l ); }
@@ -222,15 +234,9 @@ protected:
 	char *_requestPath;
 	char *_requestParams;
 	char *_requestVersion;
+	char *_requestHeaders;
 
 	void resetRequest();
-
-
-	struct RequestArgument {
-		RequestArgument() : key(nullptr), value(nullptr) {};
-		const char *key;
-		const char *value;
-	};
 
 
 	WiFiServer  _server;
@@ -265,9 +271,10 @@ protected:
 	String           _srealm;  // Store the Auth realm between Calls
 
 
+
 private:
 	String			_request;
 };
 
 
-#endif //ESP8266WEBSERVER_H
+#endif //__ESP8266_WEB_SERVER_H__
