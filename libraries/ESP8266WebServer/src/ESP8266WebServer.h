@@ -32,6 +32,7 @@
 
 #include "ESP8266WebServerHelper.h"
 #include "HTTPHeader.h"
+#include "HTTPParam.h"
 
 
 
@@ -79,35 +80,43 @@ public:
 	////////////////////////////////////////////////////////////////////////////
 
 	// GET ARGUMENTS COUNT
-	int args() const {
-		return _currentArgCount;
+	inline int args() const {
+		return _params.total();
 	}
 
 
 	// GET REQUEST ARGUMENT VALUE BY NAME
-	const char *arg(const char *name) const;
+	inline const char *arg(const char *name) const {
+		return _params.value(name);
+	}
 
 	inline String arg(String name) const {
-		return this->arg(name.c_str());
+		return _params.value(name);
 	}
 
 
 
 	// GET REQUEST ARGUMENT VALUE BY NUMBER
-	const char *arg(int i) const;
+	inline const char *arg(int i) const {
+		return _params.value(i);
+	}
 
 
 
 	// GET REQUEST ARGUMENT NAME BY NUMBER
-	const char *argName(int i) const;
+	inline const char *argName(int i) const {
+		return _params.key(i);
+	}
 
 
 
 	// CHECK IF ARGUMENT EXISTS
-	bool hasArg(const char *name) const;
+	inline bool hasArg(const char *name) const {
+		return _params.has(name);
+	}
 
 	inline bool hasArg(String name) const {
-		return this->hasArg(name.c_str());
+		return _params.has(name);
 	}
 
 
@@ -119,46 +128,43 @@ public:
 
 	// get header count
 	inline int headers() const {
-		return HTTPHeader::total();
+		return _headers.total();
 	}
 
 
 
 	// GET REQUEST HEADER VALUE BY NAME
 	inline const char *header(const char *name) const {
-		HTTPHeader *header = HTTPHeader::get(name);
-		return header ? header->value : "";
+		return _headers.value(name);
 	}
 
 	inline String header(String name) const {
-		return String((const char*)this->header(name.c_str()));
+		return _headers.value(name);
 	}
 
 
 
 	// GET REQUEST HEADER VALUE BY NUMBER
 	inline const char *header(int id) const {
-		HTTPHeader *header = HTTPHeader::get(id);
-		return header ? header->value : "";
+		return _headers.value(id);
 	}
 
 
 
 	// GET REQUEST HEADER NAME BY NUMBER
 	inline const char *headerName(int id) const {
-		HTTPHeader *header = HTTPHeader::get(id);
-		return header ? header->key : "";
+		return _headers.key(id);
 	}
 
 
 
 	// CHECK IF HEADER EXISTS
 	inline bool hasHeader(const char *name) const {
-		return HTTPHeader::has(name);
+		return _headers.has(name);
 	}
 
 	inline bool hasHeader(String name) const {
-		return HTTPHeader::has(name);
+		return _headers.has(name);
 	}
 
 
@@ -198,13 +204,6 @@ public:
 
 
 
-	////////////////////////////////////////////////////////////////////////////
-	// FAST MEMORY INPLACE URL ENCODING DECODER
-	////////////////////////////////////////////////////////////////////////////
-	static char *urlDecode(char *text, int len=0x7fffffff);
-
-
-
 protected:
 	virtual size_t _currentClientWrite(const char* b, size_t l) { return _currentClient.write( b, l ); }
 	virtual size_t _currentClientWrite_P(PGM_P b, size_t l) { return _currentClient.write_P( b, l ); }
@@ -234,7 +233,7 @@ protected:
 	char *_requestBuffer;
 	char *_requestMethod;
 	char *_requestPath;
-	char *_requestParams;
+//	char *_requestParams;
 	char *_requestVersion;
 
 	void resetRequest();
@@ -256,7 +255,7 @@ protected:
 	THandlerFunction _fileUploadHandler;
 
 	int              _currentArgCount;
-	RequestArgument* _currentArgs;
+//	RequestArgument* _currentArgs;
 	std::unique_ptr<HTTPUpload> _currentUpload;
 
 	size_t           _contentLength;
@@ -269,6 +268,9 @@ protected:
 	String           _srealm;  // Store the Auth realm between Calls
 
 
+
+	HTTPHeader		_headers;
+	HTTPParam		_params;
 
 private:
 	String			_request;

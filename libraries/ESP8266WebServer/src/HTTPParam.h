@@ -1,5 +1,5 @@
-#ifndef __HTTP_HEADER_H__
-#define __HTTP_HEADER_H__
+#ifndef __HTTP_PARAM_H__
+#define __HTTP_PARAM_H__
 
 
 
@@ -9,11 +9,11 @@
 
 
 
-class HTTPHeader : public HTTPValue {
+class HTTPParam : public HTTPValue {
 
 
 	////////////////////////////////////////////////////////////////////////////
-	// CALCULATE THE TOTAL NUMBER OF HEADER ROWS
+	// CALCULATE THE TOTAL NUMBER OF PARAM VALUES
 	////////////////////////////////////////////////////////////////////////////
 	protected:
 	virtual int _count(const char *buffer) const;
@@ -28,8 +28,16 @@ class HTTPHeader : public HTTPValue {
 	virtual char *_parse(char *buffer);
 
 
+
+
+	////////////////////////////////////////////////////////////////////////////
+	// DECODE URL ENCODING - FAST INLINE MEMORY REPLACE WITHIN THE STRING
+	////////////////////////////////////////////////////////////////////////////
+	protected:
+	static char *_decode(char *text);
+
 };
 
 
 
-#endif //__HTTP_HEADER_H__
+#endif //__HTTP_PARAM_H__

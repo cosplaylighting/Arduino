@@ -91,9 +91,10 @@ void ESP8266WebServer::resetRequest() {
 	_method				= HTTP_ANY;
 	_requestMethod		= nullptr;
 	_requestPath		= nullptr;
-	_requestParams		= nullptr;
+//	_requestParams		= nullptr;
 	_requestVersion		= nullptr;
-	HTTPHeader::reset();
+	_headers.reset();
+	_params.reset();
 }
 
 
@@ -103,8 +104,6 @@ void ESP8266WebServer::resetRequest() {
 // PARSE THE REQUEST FROM THE CLIENT BROWSER
 ////////////////////////////////////////////////////////////////////////////////
 bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
-	//RESET HEADER VALUE
-
 	//RESET ALL REQUEST VARIABLES
 	resetRequest();
 
@@ -124,6 +123,10 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 	_requestMethod =
 	_requestBuffer =
 		(char*) _request.c_str();
+
+
+	//LOCAL VARIABLES
+	char * _requestParams = nullptr;
 
 
 	//FIND REQUEST PATH AND VERSION
@@ -158,7 +161,7 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 
 
 	//PROCESS HEADERS
-	buf = HTTPHeader::process(buf);
+	buf = _headers.process(buf);
 
 
 
@@ -194,7 +197,7 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 
 	//PARSE URL PARAMETERS
 	if (_requestParams) {
-		_parseArguments(_requestParams);
+		_params.process(_requestParams, true);
 	}
 
 
@@ -205,7 +208,7 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 		case HTTP_DELETE:
 			if (*buf) {
 				//TODO: THIS IS BASED ON ENCODING METHOD, CHECK THAT FIRST
-				_parseArguments(buf);
+				_params.process(_requestParams, false);
 			}
 		break;
 	}
@@ -360,12 +363,12 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 
 	client.flush();
 
-#	ifdef DEBUG_ESP_HTTP_SERVER
+//#	ifdef DEBUG_ESP_HTTP_SERVER
 //		DEBUG_OUTPUT.print("Request: ");
 //		DEBUG_OUTPUT.println(url);
-		DEBUG_OUTPUT.print(" Arguments: ");
-		DEBUG_OUTPUT.println(_requestParams);
-#	endif
+//		DEBUG_OUTPUT.print(" Arguments: ");
+//		DEBUG_OUTPUT.println(_requestParams);
+//#	endif
 
 	return true;
 }
@@ -374,7 +377,7 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// ??
+// PARSE URL AND POST ARGUMENTS
 ////////////////////////////////////////////////////////////////////////////////
 void ESP8266WebServer::_parseArguments(char *data, bool reset) {
 
@@ -383,80 +386,7 @@ void ESP8266WebServer::_parseArguments(char *data, bool reset) {
 	DEBUG_OUTPUT.println(data);
 #endif
 
-	//RESET IF THIS IS A NEW WEB REQUEST
-	//THIS IS TO ALLOW MULTIPLE ARGUMENT SETS PER REQUEST
-	//RIGHT NOW THERE ARE BOTH URL PARAMETERS AND POST DATA
-	if (reset) {
-		if (_currentArgs) delete[] _currentArgs;
-		_currentArgs		= nullptr;
-		_currentArgCount	= 0;
-
-		//INVALID REQUEST, ONLY STORE AN EMPTY ARGUMENT
-		if (!data  ||  !*data) {
-			_currentArgs = new RequestArgument[1];
-			return;
-		}
-
-	//WE'RE NOT RESETTING, BUT WE ALSO HAVE NO NEW DATA TO PROCESS
-	} else if (!data  ||  !*data) {
-		return;
-	}
-
-
-	//WE HAVE A MINIMUM OF 1 ARGUMENT AUTOMATICALLY
-	if (_currentArgCount < 1) {
-		_currentArgCount = 1;
-	}
-
-
-	//FAST FIRST PASS - FIND THE TOTAL NUMBER OF ARGUMENTS
-	char *ptr = data;
-	while (*ptr) {
-		if (*ptr == '&') _currentArgCount++;
-		ptr++;
-	}
-
-
-#ifdef DEBUG_ESP_HTTP_SERVER
-	DEBUG_OUTPUT.print("args count: ");
-	DEBUG_OUTPUT.println(_currentArgCount);
-#endif
-
-
-
-	int		len				= ptr - data; //MUST COME BEFORE RESETTING PTR
-	ptr						= data;
-	char	*name			= ptr;
-	char	*value			= nullptr;
-	int		argid			= 0;  //TODO: THIS NEEDS TO BE CLASS LEVEL DUE TO MULTIPLE PARAMS GROUPS BEING PROCESSED
-	_currentArgs			= new RequestArgument[_currentArgCount+1];
-
-	while (len--) {
-		if (*ptr == '&'  ||  *ptr == NULL) {
-			bool brk		= (*ptr == NULL);
-			*ptr			= NULL;
-
-			RequestArgument &arg = _currentArgs[argid++];
-
-			if (value) {
-				arg.key		= urlDecode(name,	value - name);
-				arg.value	= urlDecode(value,	ptr - value);
-			} else {
-				arg.key		= urlDecode(name,	ptr - name);
-			}
-
-			name			= ptr + 1;
-			value			= nullptr;
-
-			if (brk) break;
-
-		} else if (*ptr == '='  &&  value == nullptr) {
-			*ptr			= NULL;
-			value			= ptr + 1;
-		}
-
-		ptr++;
-	}
+	_params.process(data, reset);
 }
 
 
@@ -502,6 +432,7 @@ uint8_t ESP8266WebServer::_uploadReadByte(WiFiClient& client) {
 // ??
 ////////////////////////////////////////////////////////////////////////////////
 bool ESP8266WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t len) {
+	/*
 	(void) len;
 #ifdef DEBUG_ESP_HTTP_SERVER
 	DEBUG_OUTPUT.print("Parse Form: Boundary: ");
@@ -712,60 +643,8 @@ readfile:
 	DEBUG_OUTPUT.print("Error: line: ");
 	DEBUG_OUTPUT.println(line);
 #endif
+*/
 	return false;
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// DECODE URL ENCODING - INLINE MEMORY REPLACE WITHIN THE STRING
-////////////////////////////////////////////////////////////////////////////////
-char *ESP8266WebServer::urlDecode(char *text, int len) {
-	if (!text) return text;
-
-	char *src	= text;
-	char *dst	= text;
-	char temp[]	= "00";
-
-	while (--len >= 0) {
-		switch (*src) {
-			case NULL:
-			goto finished;
-
-
-			case '%':
-				if (!src[1]  ||  !src[2]) goto finished;
-
-				temp[0] = src[1];
-				temp[1] = src[2];
-
-				len -= 2;
-				src += 2;
-
-				*dst = (char) strtol(temp, nullptr, 16);
-				if (*dst == NULL) *dst = ' ';
-			break;
-
-
-			case '+':
-				*dst = ' ';
-			break;
-
-
-			default:
-				*dst = *src;
-		}
-
-		src++;
-		dst++;
-	}
-
-
-finished:
-	*dst = NULL;
-
-	return text;
 }
 
 

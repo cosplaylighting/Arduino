@@ -55,7 +55,7 @@ void ESP8266WebServer::_init() {
 	_firstHandler		= nullptr;
 	_lastHandler		= nullptr;
 	_currentArgCount	= 0;
-	_currentArgs		= nullptr;
+//	_currentArgs		= nullptr;
 	_contentLength		= 0;
 	_chunked			= false;
 
@@ -92,7 +92,8 @@ ESP8266WebServer::ESP8266WebServer(int port) : _server(port) {
 ESP8266WebServer::~ESP8266WebServer() {
 	_server.close();
 
-	HTTPHeader::reset();
+	_headers.reset();
+	_params.reset();
 
 	RequestHandler* handler = _firstHandler;
 
@@ -670,7 +671,7 @@ void ESP8266WebServer::_streamFileCore(const size_t fileSize, const String & fil
 
 
 
-
+/*
 ////////////////////////////////////////////////////////////////////////////////
 // ??
 ////////////////////////////////////////////////////////////////////////////////
@@ -723,7 +724,7 @@ bool ESP8266WebServer::hasArg(const char *name) const {
 	}
 	return false;
 }
-
+*/
 
 
 
