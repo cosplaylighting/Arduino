@@ -401,8 +401,9 @@ void ESP8266WebServer::handleClient() {
 						keepCurrentClient = true;
 					}
 				} else {
-					resetRequest();
 					//SEND ERROR RESPONSE TO CLIENT
+					resetRequest();
+					send(status);
 				}
 			} else { // !_currentClient.available()
 				if (millis() - _statusChange <= HTTP_MAX_DATA_WAIT) {

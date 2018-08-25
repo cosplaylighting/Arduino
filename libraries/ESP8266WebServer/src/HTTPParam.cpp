@@ -9,9 +9,9 @@
 // CALCULATE THE TOTAL NUMBER OF HEADER ROWS
 ////////////////////////////////////////////////////////////////////////////////
 int HTTPParam::_count(const char *buffer) const {
-	if (buffer == nullptr) return 0;
+	if (buffer == nullptr  ||  *buffer == NULL) return 0;
 
-	int total = 0;
+	int total = 1;
 
 	while (*buffer) {
 		if (*buffer == '&') total++;
@@ -34,18 +34,22 @@ char *HTTPParam::_parse(char *buffer) {
 	char	*param_value	= nullptr;
 	int		 id				= 0;
 
-	while (*buffer) {
-		if (*buffer == '&') {
+	while (true) {
+		if (*buffer == '&'  ||  *buffer == NULL) {
+			bool end = (*buffer == NULL);
+
 			*buffer++ = NULL;
 
 			set(id++, _decode(param_key), _decode(param_value));
+
+			if (end) break;
 
 			param_key	= buffer;
 			param_value	= nullptr;
 
 		} else if (*buffer == '='  &&  param_value == nullptr) {
 			*buffer++ = NULL;
-			param_value = buffer + 1;
+			param_value = buffer;
 
 		} else {
 			buffer++;

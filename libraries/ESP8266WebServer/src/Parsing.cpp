@@ -24,8 +24,8 @@ Sketch uses 411200 bytes (39%) of program storage space. Maximum is 1044464 byte
 Global variables use 38732 bytes (47%) of dynamic memory, leaving 43188 bytes for local variables. Maximum is 81920 bytes.
 
 current stage (no posting, should have fast buffer reading)
-Sketch uses 406772 bytes (38%) of program storage space. Maximum is 1044464 bytes.
-Global variables use 38872 bytes (47%) of dynamic memory, leaving 43048 bytes for local variables. Maximum is 81920 bytes.
+Sketch uses 406924 bytes (38%) of program storage space. Maximum is 1044464 bytes.
+Global variables use 38824 bytes (47%) of dynamic memory, leaving 43096 bytes for local variables. Maximum is 81920 bytes.
 */
 
 
@@ -62,33 +62,6 @@ static inline T *vealloc(T *ptr, size_t size) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// ??
-////////////////////////////////////////////////////////////////////////////////
-/*
-static char *readBytesWithTimeout(WiFiClient& client, size_t maxLength, size_t& dataLength, int timeout_ms) {
-	char *buf = nullptr;
-	dataLength = 0;
-	while (dataLength < maxLength) {
-		int tries = timeout_ms;
-		size_t newLength;
-		while (!(newLength = client.available()) && tries--) delay(1);
-
-		if (!newLength) break;
-
-		buf = vealloc(buf, dataLength + newLength + 1);
-		if (!buf) return nullptr;
-
-		client.readBytes(buf + dataLength, newLength);
-		dataLength += newLength;
-		buf[dataLength] = '\0';
-	}
-	return buf;
-}
-*/
-
-
-
-////////////////////////////////////////////////////////////////////////////////
 // RESET ALL REQUEST VARIABLES TO DEFAULT FOR NEW INCOMING CONNECTION
 // NOTE: WE DON'T TOUCH _requestBuffer BECAUSE OF A BUFFER REUSE OPTIMIZATION
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,38 +88,34 @@ int ESP8266WebServer::_parseRequest(WiFiClient& client) {
 	//RESET ALL REQUEST VARIABLES
 	resetRequest();
 
-	// READ THE FIRST LINE OF HTTP REQUEST
-	//TODO: READ LITERALLY EVERYTHING
-	//SINGLE BUFFER, PARSE IT OUT USING AWESOMENESS
-	//String req = client.readStringUntil('\r');
-	//client.readStringUntil('\n');
 
-	//THIS IS READING FOREVER UNTIL TIMEOUT VALUE HAPPENS
-	//WE NEED A CUSTOM READ FUNCTION THAT SEARCHES UNTIL "STRING", NOT 'X' (SINGLE CHARACTER)
-	//_request = "";//client.readString();
-
-
-
-	auto timeout = millis();
-
+	auto timeout	= millis();
 	auto read		= 0;
+
 	do {
 
-		//MAKE READ TIMEOUT CONFIGURABLE
+		//TODO: MAKE READ TIMEOUT CONFIGURABLE
 		if (millis() - timeout > 5000) return 408;
 
+		//CHECK FOR AVAILABLE BYTES
 		auto available	= client.available();
 		if (!available) { yield(); continue; }
 
+		//INCREASE BUFFER SIZE
 		_request = vealloc(_request, read + available + 1);
 
+		//NO ROOM TO EXPAND BUFFER? OUTPUT ERROR!
 		if (!_request) return 413;
 
+		//READ AVAILABLE BYTES INTO OUR BUFFER
 		client.read(((unsigned char*)_request) + read, available);
 
+		//INCREASE VALUE LETTING US KNOW HOW MUCH WE READ
 		read += available;
 
+		//NULL TERMINATE THE BUFFER STRING
 		_request[read] = NULL;
+
 	} while (!strstr(_request, "\r\n\r\n"));
 
 
@@ -173,14 +142,15 @@ int ESP8266WebServer::_parseRequest(WiFiClient& client) {
 		Serial.println(_request);
 #	endif
 
-	//REFERENCE TO BUFFER BUFFER
+
+	//REFERENCE TO BUFFER LOCATIONS
 	_requestMethod =
 	_requestBuffer =
-		(char*) _request;
+		_request;
 
 
 	//LOCAL VARIABLES
-	char * _requestParams = nullptr;
+	char *_requestParams = nullptr;
 
 
 	//FIND REQUEST PATH AND VERSION
@@ -235,17 +205,17 @@ int ESP8266WebServer::_parseRequest(WiFiClient& client) {
 
 
 	//PARSE REQUEST METHOD
-	if (!strcasecmp_P(_requestMethod, F("GET"))) {
+	if (!strcasecmp_P(_requestMethod, PSTR("GET"))) {
 		_method = HTTP_GET;
-	} else if (!strcasecmp_P(_requestMethod, F("POST"))) {
+	} else if (!strcasecmp_P(_requestMethod, PSTR("POST"))) {
 		_method = HTTP_POST;
-	} else if (!strcasecmp_P(_requestMethod, F("DELETE"))) {
+	} else if (!strcasecmp_P(_requestMethod, PSTR("DELETE"))) {
 		_method = HTTP_DELETE;
-	} else if (!strcasecmp_P(_requestMethod, F("OPTIONS"))) {
+	} else if (!strcasecmp_P(_requestMethod, PSTR("OPTIONS"))) {
 		_method = HTTP_OPTIONS;
-	} else if (!strcasecmp_P(_requestMethod, F("PUT"))) {
+	} else if (!strcasecmp_P(_requestMethod, PSTR("PUT"))) {
 		_method = HTTP_PUT;
-	} else if (!strcasecmp_P(_requestMethod, F("PATCH"))) {
+	} else if (!strcasecmp_P(_requestMethod, PSTR("PATCH"))) {
 		_method = HTTP_PATCH;
 	}
 
@@ -428,13 +398,6 @@ int ESP8266WebServer::_parseRequest(WiFiClient& client) {
 
 
 	client.flush();
-
-//#	ifdef DEBUG_ESP_HTTP_SERVER
-//		DEBUG_OUTPUT.print("Request: ");
-//		DEBUG_OUTPUT.println(url);
-//		DEBUG_OUTPUT.print(" Arguments: ");
-//		DEBUG_OUTPUT.println(_requestParams);
-//#	endif
 
 	return 200;
 }
