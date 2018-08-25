@@ -210,7 +210,7 @@ protected:
 	void _addRequestHandler(RequestHandler* handler);
 	void _handleRequest();
 	void _finalizeResponse();
-	bool _parseRequest(WiFiClient& client);
+	int _parseRequest(WiFiClient& client);
 	void _parseArguments(char *data, bool reset=true);
 	static String _responseCodeToString(int code);
 	bool _parseForm(WiFiClient& client, String boundary, uint32_t len);
@@ -238,6 +238,8 @@ protected:
 
 	void resetRequest();
 
+	int _statusCode;
+
 
 	WiFiServer  _server;
 
@@ -254,7 +256,7 @@ protected:
 	THandlerFunction _notFoundHandler;
 	THandlerFunction _fileUploadHandler;
 
-	int              _currentArgCount;
+//	int              _currentArgCount;
 //	RequestArgument* _currentArgs;
 	std::unique_ptr<HTTPUpload> _currentUpload;
 
@@ -273,7 +275,7 @@ protected:
 	HTTPParam		_params;
 
 private:
-	String			_request;
+	char			*_request;
 };
 
 

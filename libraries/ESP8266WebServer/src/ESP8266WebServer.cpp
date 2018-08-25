@@ -54,13 +54,14 @@ void ESP8266WebServer::_init() {
 	_handler			= nullptr;
 	_firstHandler		= nullptr;
 	_lastHandler		= nullptr;
-	_currentArgCount	= 0;
+//	_currentArgCount	= 0;
 //	_currentArgs		= nullptr;
 	_contentLength		= 0;
 	_chunked			= false;
 
 	_currentUri			= "";
 
+	_request			= nullptr;
 	_requestBuffer		= nullptr;
 	resetRequest();
 }
@@ -388,7 +389,8 @@ void ESP8266WebServer::handleClient() {
 		case HC_WAIT_READ:
 			// Wait for data from client to become available
 			if (_currentClient.available()) {
-				if (_parseRequest(_currentClient)) {
+				auto status = _parseRequest(_currentClient);
+				if (status == 200) {
 					_currentClient.setTimeout(HTTP_MAX_SEND_WAIT);
 					_contentLength = CONTENT_LENGTH_NOT_SET;
 					_handleRequest();
@@ -398,6 +400,9 @@ void ESP8266WebServer::handleClient() {
 						_statusChange = millis();
 						keepCurrentClient = true;
 					}
+				} else {
+					resetRequest();
+					//SEND ERROR RESPONSE TO CLIENT
 				}
 			} else { // !_currentClient.available()
 				if (millis() - _statusChange <= HTTP_MAX_DATA_WAIT) {

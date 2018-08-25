@@ -23,7 +23,9 @@ baseline:
 Sketch uses 411200 bytes (39%) of program storage space. Maximum is 1044464 bytes.
 Global variables use 38732 bytes (47%) of dynamic memory, leaving 43188 bytes for local variables. Maximum is 81920 bytes.
 
-
+current stage (no posting, should have fast buffer reading)
+Sketch uses 406772 bytes (38%) of program storage space. Maximum is 1044464 bytes.
+Global variables use 38872 bytes (47%) of dynamic memory, leaving 43048 bytes for local variables. Maximum is 81920 bytes.
 */
 
 
@@ -46,10 +48,12 @@ static const char filename[] PROGMEM = "filename";
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// ??
+// ATTEMPT TO REALLOCATE MEMORY - OR RETURN NULLPTR ON FAILURE
+// UNLIKE NORMAL REALLOC, THIS WILL FREE() THE PREVIOUS BUFFER ON FAILURE
 ////////////////////////////////////////////////////////////////////////////////
-static void *vealloc(void *ptr, size_t size) {
-	void *newptr = realloc(ptr, size);
+template <class T>
+static inline T *vealloc(T *ptr, size_t size) {
+	T *newptr = (T*) realloc(ptr, size);
 	if (!newptr) free(ptr);
 	return newptr;
 }
@@ -60,6 +64,7 @@ static void *vealloc(void *ptr, size_t size) {
 ////////////////////////////////////////////////////////////////////////////////
 // ??
 ////////////////////////////////////////////////////////////////////////////////
+/*
 static char *readBytesWithTimeout(WiFiClient& client, size_t maxLength, size_t& dataLength, int timeout_ms) {
 	char *buf = nullptr;
 	dataLength = 0;
@@ -70,7 +75,7 @@ static char *readBytesWithTimeout(WiFiClient& client, size_t maxLength, size_t& 
 
 		if (!newLength) break;
 
-		buf = (char*) vealloc(buf, dataLength + newLength + 1);
+		buf = vealloc(buf, dataLength + newLength + 1);
 		if (!buf) return nullptr;
 
 		client.readBytes(buf + dataLength, newLength);
@@ -79,7 +84,7 @@ static char *readBytesWithTimeout(WiFiClient& client, size_t maxLength, size_t& 
 	}
 	return buf;
 }
-
+*/
 
 
 
@@ -88,10 +93,14 @@ static char *readBytesWithTimeout(WiFiClient& client, size_t maxLength, size_t& 
 // NOTE: WE DON'T TOUCH _requestBuffer BECAUSE OF A BUFFER REUSE OPTIMIZATION
 ////////////////////////////////////////////////////////////////////////////////
 void ESP8266WebServer::resetRequest() {
-	_method				= HTTP_ANY;
+	free(_request);
+	_request			= nullptr;
+	_requestBuffer		= nullptr;
 	_requestMethod		= nullptr;
 	_requestPath		= nullptr;
 	_requestVersion		= nullptr;
+	_method				= HTTP_ANY;
+	_statusCode			= 0;
 	_headers.reset();
 	_params.reset();
 }
@@ -102,7 +111,7 @@ void ESP8266WebServer::resetRequest() {
 ////////////////////////////////////////////////////////////////////////////////
 // PARSE THE REQUEST FROM THE CLIENT BROWSER
 ////////////////////////////////////////////////////////////////////////////////
-bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
+int ESP8266WebServer::_parseRequest(WiFiClient& client) {
 	//RESET ALL REQUEST VARIABLES
 	resetRequest();
 
@@ -114,7 +123,50 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 
 	//THIS IS READING FOREVER UNTIL TIMEOUT VALUE HAPPENS
 	//WE NEED A CUSTOM READ FUNCTION THAT SEARCHES UNTIL "STRING", NOT 'X' (SINGLE CHARACTER)
-	_request = client.readString();
+	//_request = "";//client.readString();
+
+
+
+	auto timeout = millis();
+
+	auto read		= 0;
+	do {
+
+		//MAKE READ TIMEOUT CONFIGURABLE
+		if (millis() - timeout > 5000) return 408;
+
+		auto available	= client.available();
+		if (!available) { yield(); continue; }
+
+		_request = vealloc(_request, read + available + 1);
+
+		if (!_request) return 413;
+
+		client.read(((unsigned char*)_request) + read, available);
+
+		read += available;
+
+		_request[read] = NULL;
+	} while (!strstr(_request, "\r\n\r\n"));
+
+
+
+	//TODO:	switch _request over to normal character buffer array
+	//		load data until we find "\r\n\r\n"
+	//		parse headers
+	//		check if content-length is available
+	//		if so, run a realloc
+	//		compute old vs new buffer offsets
+	//		adjust all arrays based on buffer offset different
+
+	/*
+		error checking:
+		1) if we've read too much data (10kb?) without hitting \r\n\r\n, bail
+		2) if alloc or realloc fails, bail
+		3) if content length is too long, bail before even reading POST data
+	*/
+
+
 
 #	ifdef DEBUG_ESP_HTTP_SERVER
 		Serial.println("REQUEST:");
@@ -124,7 +176,7 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 	//REFERENCE TO BUFFER BUFFER
 	_requestMethod =
 	_requestBuffer =
-		(char*) _request.c_str();
+		(char*) _request;
 
 
 	//LOCAL VARIABLES
@@ -158,7 +210,7 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 	}
 
 	//NOT WELL FORMATTED REQUEST HEADER
-	if (!_requestVersion) return false;
+	if (!_requestVersion) return 400;
 
 
 
@@ -181,20 +233,27 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 		DEBUG_OUTPUT.println("--");
 #	endif
 
+
 	//PARSE REQUEST METHOD
-	if (!strcasecmp(_requestMethod, "GET")) {
+	if (!strcasecmp_P(_requestMethod, F("GET"))) {
 		_method = HTTP_GET;
-	} else if (!strcasecmp(_requestMethod, "POST")) {
+	} else if (!strcasecmp_P(_requestMethod, F("POST"))) {
 		_method = HTTP_POST;
-	} else if (!strcasecmp(_requestMethod, "DELETE")) {
+	} else if (!strcasecmp_P(_requestMethod, F("DELETE"))) {
 		_method = HTTP_DELETE;
-	} else if (!strcasecmp(_requestMethod, "OPTIONS")) {
+	} else if (!strcasecmp_P(_requestMethod, F("OPTIONS"))) {
 		_method = HTTP_OPTIONS;
-	} else if (!strcasecmp(_requestMethod, "PUT")) {
+	} else if (!strcasecmp_P(_requestMethod, F("PUT"))) {
 		_method = HTTP_PUT;
-	} else if (!strcasecmp(_requestMethod, "PATCH")) {
+	} else if (!strcasecmp_P(_requestMethod, F("PATCH"))) {
 		_method = HTTP_PATCH;
 	}
+
+
+#	ifdef DEBUG_ESP_HTTP_SERVER
+		Serial.print("Method detected: ");
+		Serial.println(_method);
+#	endif
 
 
 	//PARSE URL PARAMETERS
@@ -215,7 +274,7 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 		case HTTP_DELETE:
 			if (*buf) {
 				//TODO: THIS IS BASED ON ENCODING METHOD, CHECK THAT FIRST
-				//_params.process(_requestBody, false);
+				_params.process(buf, false);
 			}
 		break;
 	}
@@ -377,7 +436,7 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 //		DEBUG_OUTPUT.println(_requestParams);
 //#	endif
 
-	return true;
+	return 200;
 }
 
 
