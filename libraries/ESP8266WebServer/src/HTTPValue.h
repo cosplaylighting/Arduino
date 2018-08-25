@@ -205,6 +205,14 @@ class HTTPValue {
 	// STATIC VERSION OF SETTING THE VALUE
 	////////////////////////////////////////////////////////////////////////////
 	inline void set(int id, const char *key, const char *value=nullptr) {
+		Serial.print("ID: (");
+		Serial.print(id);
+		Serial.print(") - Key: (");
+		Serial.print(key);
+		Serial.print(") Value: (");
+		Serial.print(value);
+		Serial.println(")");
+
 		auto item = get(id);
 		if (item) {
 			item->key	= key;

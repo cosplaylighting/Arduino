@@ -59,6 +59,8 @@ void ESP8266WebServer::_init() {
 	_contentLength		= 0;
 	_chunked			= false;
 
+	_currentUri			= "";
+
 	_requestBuffer		= nullptr;
 	resetRequest();
 }

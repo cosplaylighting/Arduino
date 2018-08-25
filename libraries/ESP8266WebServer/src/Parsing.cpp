@@ -91,7 +91,6 @@ void ESP8266WebServer::resetRequest() {
 	_method				= HTTP_ANY;
 	_requestMethod		= nullptr;
 	_requestPath		= nullptr;
-//	_requestParams		= nullptr;
 	_requestVersion		= nullptr;
 	_headers.reset();
 	_params.reset();
@@ -112,6 +111,9 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 	//SINGLE BUFFER, PARSE IT OUT USING AWESOMENESS
 	//String req = client.readStringUntil('\r');
 	//client.readStringUntil('\n');
+
+	//THIS IS READING FOREVER UNTIL TIMEOUT VALUE HAPPENS
+	//WE NEED A CUSTOM READ FUNCTION THAT SEARCHES UNTIL "STRING", NOT 'X' (SINGLE CHARACTER)
 	_request = client.readString();
 
 #	ifdef DEBUG_ESP_HTTP_SERVER
@@ -136,9 +138,9 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 			*buf++ = NULL;
 			if (!_requestPath) {
 				_requestPath	= buf;
-			} else {
+				_currentUri		= buf; //TODO: change over to _requestPath everywhere
+			} else if (!_requestVersion) {
 				_requestVersion	= buf;
-				break;
 			}
 
 		} else if (buf[0] == '\r'  &&  buf[1] == '\n') {
@@ -197,6 +199,11 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 
 	//PARSE URL PARAMETERS
 	if (_requestParams) {
+#		ifdef DEBUG_ESP_HTTP_SERVER
+			DEBUG_OUTPUT.print("Params: --");
+			DEBUG_OUTPUT.print(_requestParams);
+			DEBUG_OUTPUT.println("--");
+#		endif
 		_params.process(_requestParams, true);
 	}
 
@@ -208,7 +215,7 @@ bool ESP8266WebServer::_parseRequest(WiFiClient& client) {
 		case HTTP_DELETE:
 			if (*buf) {
 				//TODO: THIS IS BASED ON ENCODING METHOD, CHECK THAT FIRST
-				_params.process(_requestParams, false);
+				//_params.process(_requestBody, false);
 			}
 		break;
 	}

@@ -126,7 +126,7 @@ public:
 	// HEADERS
 	////////////////////////////////////////////////////////////////////////////
 
-	// get header count
+	// GET HEADER COUNT
 	inline int headers() const {
 		return _headers.total();
 	}
