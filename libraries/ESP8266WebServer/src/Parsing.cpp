@@ -23,9 +23,13 @@ baseline:
 Sketch uses 411200 bytes (39%) of program storage space. Maximum is 1044464 bytes.
 Global variables use 38732 bytes (47%) of dynamic memory, leaving 43188 bytes for local variables. Maximum is 81920 bytes.
 
-current stage (no posting, should have fast buffer reading)
+early stage (no posting, should have fast buffer reading)
 Sketch uses 406924 bytes (38%) of program storage space. Maximum is 1044464 bytes.
 Global variables use 38824 bytes (47%) of dynamic memory, leaving 43096 bytes for local variables. Maximum is 81920 bytes.
+
+current stage (everything is beautiful)
+Sketch uses 407264 bytes (38%) of program storage space. Maximum is 1044464 bytes.
+Global variables use 38812 bytes (47%) of dynamic memory, leaving 43108 bytes for local variables. Maximum is 81920 bytes.
 */
 
 
@@ -90,7 +94,6 @@ int ESP8266WebServer::_parseRequest(WiFiClient& client) {
 	auto read		= 0;
 
 	do {
-
 		//TODO: MAKE READ TIMEOUT CONFIGURABLE
 		if (millis() - timeout > 5000) return 408;
 
@@ -135,8 +138,8 @@ int ESP8266WebServer::_parseRequest(WiFiClient& client) {
 
 
 #	ifdef DEBUG_ESP_HTTP_SERVER
-		Serial.println("REQUEST:");
-		Serial.println(_request);
+		DEBUG_OUTPUT.println(F("REQUEST:"));
+		DEBUG_OUTPUT.println(_request);
 #	endif
 
 
@@ -146,11 +149,41 @@ int ESP8266WebServer::_parseRequest(WiFiClient& client) {
 
 
 	//PROCESS HEADERS
-	char *buf = _headers.process(_request);
+	char	*offset	= _request;
+	char	*buf	= _headers.process(_request);
+	int		hlength	= buf - _request;
+	int		clength	= _headers.integer("Content-Length");
 
 
-	char *line = (char*) _headers.value(0);
-	if (!line) return 500;
+	while (read - hlength < clength) {
+		//TODO: MAKE READ TIMEOUT CONFIGURABLE
+		if (millis() - timeout > 5000) return 408;
+
+		//CHECK FOR AVAILABLE BYTES
+		auto available	= client.available();
+		if (!available) { yield(); continue; }
+
+		//INCREASE BUFFER SIZE
+		_request = vealloc(_request, read + available + 1);
+
+		//NO ROOM TO EXPAND BUFFER? OUTPUT ERROR!
+		if (!_request) return 413;
+
+		//READ AVAILABLE BYTES INTO OUR BUFFER
+		client.read(((unsigned char*)_request) + read, available);
+
+		//INCREASE VALUE LETTING US KNOW HOW MUCH WE READ
+		read += available;
+
+		//NULL TERMINATE THE BUFFER STRING
+		_request[read] = NULL;
+	}
+
+	_headers.__offset(_request - offset);
+
+
+	char *line = (char*) _headers.key(0);
+	if (!line  ||  !*line) return 418;
 
 	do {
 		if (*line == ' ') {
@@ -182,49 +215,49 @@ int ESP8266WebServer::_parseRequest(WiFiClient& client) {
 
 
 #	ifdef DEBUG_ESP_HTTP_SERVER
-		DEBUG_OUTPUT.print("Method: --");
-		DEBUG_OUTPUT.print(_headers.value(0));
-		DEBUG_OUTPUT.println("--");
+		DEBUG_OUTPUT.print(F("Method: --"));
+		DEBUG_OUTPUT.print(_headers.key(0));
+		DEBUG_OUTPUT.println(F("--"));
 
-		DEBUG_OUTPUT.print("Path: --");
+		DEBUG_OUTPUT.print(F("Path: --"));
 		DEBUG_OUTPUT.print(_requestPath);
-		DEBUG_OUTPUT.println("--");
+		DEBUG_OUTPUT.println(F("--"));
 
-		DEBUG_OUTPUT.print("Version: --");
+		DEBUG_OUTPUT.print(F("Version: --"));
 		DEBUG_OUTPUT.print(_requestVersion);
-		DEBUG_OUTPUT.println("--");
+		DEBUG_OUTPUT.println(F("--"));
 #	endif
 
 
 	//PARSE REQUEST METHOD
-	const char *Method = _headers.value(0);
-	if (!strcasecmp_P(method, PSTR("GET"))) {
+	const char *method = _headers.key(0);
+	if (!strcasecmp(method, "GET")) {
 		_method = HTTP_GET;
-	} else if (!strcasecmp_P(method, PSTR("POST"))) {
+	} else if (!strcasecmp(method, "POST")) {
 		_method = HTTP_POST;
-	} else if (!strcasecmp_P(method, PSTR("DELETE"))) {
+	} else if (!strcasecmp(method, "DELETE")) {
 		_method = HTTP_DELETE;
-	} else if (!strcasecmp_P(method, PSTR("OPTIONS"))) {
+	} else if (!strcasecmp(method, "OPTIONS")) {
 		_method = HTTP_OPTIONS;
-	} else if (!strcasecmp_P(method, PSTR("PUT"))) {
+	} else if (!strcasecmp(method, "PUT")) {
 		_method = HTTP_PUT;
-	} else if (!strcasecmp_P(method, PSTR("PATCH"))) {
+	} else if (!strcasecmp(method, "PATCH")) {
 		_method = HTTP_PATCH;
 	}
 
 
 #	ifdef DEBUG_ESP_HTTP_SERVER
-		Serial.print("Method detected: ");
-		Serial.println(_method);
+		DEBUG_OUTPUT.print(F("Method detected: "));
+		DEBUG_OUTPUT.println(_method);
 #	endif
 
 
 	//PARSE URL PARAMETERS
 	if (_requestParams) {
 #		ifdef DEBUG_ESP_HTTP_SERVER
-			DEBUG_OUTPUT.print("Params: --");
+			DEBUG_OUTPUT.print(F("Params: --"));
 			DEBUG_OUTPUT.print(_requestParams);
-			DEBUG_OUTPUT.println("--");
+			DEBUG_OUTPUT.println(F("--"));
 #		endif
 		_params.process(_requestParams, true);
 	}
@@ -294,9 +327,9 @@ int ESP8266WebServer::_parseRequest(WiFiClient& client) {
 					_collectHeader(headerName.c_str(),headerValue.c_str());
 
 					#ifdef DEBUG_ESP_HTTP_SERVER
-					DEBUG_OUTPUT.print("headerName: ");
+					DEBUG_OUTPUT.print(F("headerName: "));
 					DEBUG_OUTPUT.println(headerName);
-					DEBUG_OUTPUT.print("headerValue: ");
+					DEBUG_OUTPUT.print(F("headerValue: "));
 					DEBUG_OUTPUT.println(headerValue);
 					#endif
 
@@ -344,7 +377,7 @@ int ESP8266WebServer::_parseRequest(WiFiClient& client) {
 						}
 
 	#					ifdef DEBUG_ESP_HTTP_SERVER
-							DEBUG_OUTPUT.print("Plain: ");
+							DEBUG_OUTPUT.print(F("Plain: "));
 							DEBUG_OUTPUT.println(plainBuf);
 	#					endif
 
@@ -379,9 +412,9 @@ int ESP8266WebServer::_parseRequest(WiFiClient& client) {
 					_collectHeader(headerName.c_str(),headerValue.c_str());
 
 #					ifdef DEBUG_ESP_HTTP_SERVER
-						DEBUG_OUTPUT.print("headerName: ");
+						DEBUG_OUTPUT.print(F("headerName: "));
 						DEBUG_OUTPUT.println(headerName);
-						DEBUG_OUTPUT.print("headerValue: ");
+						DEBUG_OUTPUT.print(F("headerValue: "));
 						DEBUG_OUTPUT.println(headerValue);
 #					endif
 
@@ -448,9 +481,9 @@ bool ESP8266WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t 
 	/*
 	(void) len;
 #ifdef DEBUG_ESP_HTTP_SERVER
-	DEBUG_OUTPUT.print("Parse Form: Boundary: ");
+	DEBUG_OUTPUT.print(F("Parse Form: Boundary: "));
 	DEBUG_OUTPUT.print(boundary);
-	DEBUG_OUTPUT.print(" Length: ");
+	DEBUG_OUTPUT.print(F(" Length: "));
 	DEBUG_OUTPUT.println(len);
 #endif
 	String line;
@@ -486,7 +519,7 @@ bool ESP8266WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t 
 						argName = argName.substring(0, argName.indexOf('"'));
 						argIsFile = true;
 #ifdef DEBUG_ESP_HTTP_SERVER
-						DEBUG_OUTPUT.print("PostArg FileName: ");
+						DEBUG_OUTPUT.print(F("PostArg FileName: "));
 						DEBUG_OUTPUT.println(argFilename);
 #endif
 						//use GET to set the filename if uploading using blob
@@ -495,7 +528,7 @@ bool ESP8266WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t 
 						}
 					}
 #ifdef DEBUG_ESP_HTTP_SERVER
-					DEBUG_OUTPUT.print("PostArg Name: ");
+					DEBUG_OUTPUT.print(F("PostArg Name: "));
 					DEBUG_OUTPUT.println(argName);
 #endif
 					using namespace mime;
@@ -509,7 +542,7 @@ bool ESP8266WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t 
 						client.readStringUntil('\n');
 					}
 #ifdef DEBUG_ESP_HTTP_SERVER
-					DEBUG_OUTPUT.print("PostArg Type: ");
+					DEBUG_OUTPUT.print(F("PostArg Type: "));
 					DEBUG_OUTPUT.println(argType);
 #endif
 					if (!argIsFile){
@@ -521,7 +554,7 @@ bool ESP8266WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t 
 							argValue += line;
 						}
 #ifdef DEBUG_ESP_HTTP_SERVER
-						DEBUG_OUTPUT.print("PostArg Value: ");
+						DEBUG_OUTPUT.print(F("PostArg Value: "));
 						DEBUG_OUTPUT.println(argValue);
 						DEBUG_OUTPUT.println();
 #endif
@@ -533,7 +566,7 @@ bool ESP8266WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t 
 
 						if (line == ("--"+boundary+"--")){
 #ifdef DEBUG_ESP_HTTP_SERVER
-							DEBUG_OUTPUT.println("Done Parsing POST");
+							DEBUG_OUTPUT.println(F("Done Parsing POST"));
 #endif
 							break;
 						}
@@ -546,9 +579,9 @@ bool ESP8266WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t 
 						_currentUpload->totalSize = 0;
 						_currentUpload->currentSize = 0;
 #ifdef DEBUG_ESP_HTTP_SERVER
-						DEBUG_OUTPUT.print("Start File: ");
+						DEBUG_OUTPUT.print(F("Start File: "));
 						DEBUG_OUTPUT.print(_currentUpload->filename);
-						DEBUG_OUTPUT.print(" Type: ");
+						DEBUG_OUTPUT.print(F(" Type: "));
 						DEBUG_OUTPUT.println(_currentUpload->type);
 #endif
 						if(_handler && _handler->canUpload(_requestPath))
@@ -595,18 +628,18 @@ readfile:
 								if(_handler && _handler->canUpload(_requestPath))
 									_handler->upload(*this, _requestPath, *_currentUpload);
 #ifdef DEBUG_ESP_HTTP_SERVER
-								DEBUG_OUTPUT.print("End File: ");
+								DEBUG_OUTPUT.print(F("End File: "));
 								DEBUG_OUTPUT.print(_currentUpload->filename);
-								DEBUG_OUTPUT.print(" Type: ");
+								DEBUG_OUTPUT.print(F(" Type: "));
 								DEBUG_OUTPUT.print(_currentUpload->type);
-								DEBUG_OUTPUT.print(" Size: ");
+								DEBUG_OUTPUT.print(F(" Size: "));
 								DEBUG_OUTPUT.println(_currentUpload->totalSize);
 #endif
 								line = client.readStringUntil(0x0D);
 								client.readStringUntil(0x0A);
 								if (line == "--"){
 #ifdef DEBUG_ESP_HTTP_SERVER
-									DEBUG_OUTPUT.println("Done Parsing POST");
+									DEBUG_OUTPUT.println(F("Done Parsing POST"));
 #endif
 									break;
 								}
@@ -653,7 +686,7 @@ readfile:
 		return true;
 	}
 #ifdef DEBUG_ESP_HTTP_SERVER
-	DEBUG_OUTPUT.print("Error: line: ");
+	DEBUG_OUTPUT.print(F("Error: line: "));
 	DEBUG_OUTPUT.println(line);
 #endif
 */
