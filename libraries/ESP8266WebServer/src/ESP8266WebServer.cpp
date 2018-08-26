@@ -54,15 +54,9 @@ void ESP8266WebServer::_init() {
 	_handler			= nullptr;
 	_firstHandler		= nullptr;
 	_lastHandler		= nullptr;
-//	_currentArgCount	= 0;
-//	_currentArgs		= nullptr;
 	_contentLength		= 0;
 	_chunked			= false;
 
-	_currentUri			= "";
-
-	_request			= nullptr;
-	_requestBuffer		= nullptr;
 	resetRequest();
 }
 
@@ -405,6 +399,7 @@ void ESP8266WebServer::handleClient() {
 					resetRequest();
 					send(status);
 				}
+
 			} else { // !_currentClient.available()
 				if (millis() - _statusChange <= HTTP_MAX_DATA_WAIT) {
 					keepCurrentClient = true;
@@ -767,7 +762,7 @@ void ESP8266WebServer::_handleRequest() {
 #		endif
 	}
 	else {
-		handled = _handler->handle(*this, _method, _currentUri);
+		handled = _handler->handle(*this, _method, _requestPath);
 #		ifdef DEBUG_ESP_HTTP_SERVER
 			if (!handled) {
 				DEBUG_OUTPUT.println("request handler failed to handle request");
@@ -780,13 +775,13 @@ void ESP8266WebServer::_handleRequest() {
 	}
 	if (!handled) {
 		using namespace mime;
-		send(404, String(FPSTR(mimeTable[html].mimeType)), String(F("Not found: ")) + _currentUri);
+		send(404, String(FPSTR(mimeTable[html].mimeType)), String(F("Not found: ")) + _requestPath);
 		handled = true;
 	}
 	if (handled) {
 		_finalizeResponse();
 	}
-	_currentUri = "";
+	_requestPath = "";
 }
 
 

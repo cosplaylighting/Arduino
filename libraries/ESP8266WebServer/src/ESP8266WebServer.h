@@ -67,7 +67,7 @@ public:
 	void onNotFound(THandlerFunction fn);  //called when handler is not assigned
 	void onFileUpload(THandlerFunction fn); //handle file uploads
 
-	const char *uri() const				{ return _currentUri; }
+	const char *uri() const				{ return _requestPath; }
 	HTTPMethod method() const			{ return _method; }
 	virtual WiFiClient client() const	{ return _currentClient; }
 	HTTPUpload& upload() const			{ return *_currentUpload; }
@@ -205,18 +205,24 @@ public:
 
 
 protected:
-	virtual size_t _currentClientWrite(const char* b, size_t l) { return _currentClient.write( b, l ); }
-	virtual size_t _currentClientWrite_P(PGM_P b, size_t l) { return _currentClient.write_P( b, l ); }
+	virtual size_t _currentClientWrite(const char* b, size_t l) {
+		return _currentClient.write( b, l );
+	}
+
+	virtual size_t _currentClientWrite_P(PGM_P b, size_t l) {
+		return _currentClient.write_P( b, l );
+	}
+
+
 	void _addRequestHandler(RequestHandler* handler);
 	void _handleRequest();
 	void _finalizeResponse();
 	int _parseRequest(WiFiClient& client);
-	void _parseArguments(char *data, bool reset=true);
 	static String _responseCodeToString(int code);
-	bool _parseForm(WiFiClient& client, String boundary, uint32_t len);
-	bool _parseFormUploadAborted();
-	void _uploadWriteByte(uint8_t b);
-	uint8_t _uploadReadByte(WiFiClient& client);
+//	bool _parseForm(WiFiClient& client, String boundary, uint32_t len);
+//	bool _parseFormUploadAborted();
+//	void _uploadWriteByte(uint8_t b);
+//	uint8_t _uploadReadByte(WiFiClient& client);
 
 	//THIS IS A RESPONSE HEADER, NOT A REQUEST HEADER
 	void _prepareHeader(String& response, int code, const char* content_type, size_t contentLength);
@@ -230,10 +236,7 @@ protected:
 
 	// BUFFER IS THE ALLOCATED BUFFER
 	// METHOD, PATH, AND VERSIONS ARE ALL POINTERS WITHIN THE SINGLE ALLOCATED BUFFER
-	char *_requestBuffer;
-	char *_requestMethod;
 	char *_requestPath;
-//	char *_requestParams;
 	char *_requestVersion;
 
 	void resetRequest();
@@ -245,7 +248,6 @@ protected:
 
 	WiFiClient  _currentClient;
 	HTTPMethod  _method;
-	const char *_currentUri;
 	uint8_t     _currentVersion;
 	HTTPClientStatus _currentStatus;
 	unsigned long _statusChange;
