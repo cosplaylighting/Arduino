@@ -25,7 +25,7 @@ class HTTPParam : public HTTPValue {
 	// PARSE AND TOKENIZE THE BUFFER
 	////////////////////////////////////////////////////////////////////////////
 	protected:
-	virtual char *_parse(char *buffer);
+	virtual char *_parse(char *buffer, int id=0);
 
 
 

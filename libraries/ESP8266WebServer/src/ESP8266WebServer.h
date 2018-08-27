@@ -173,20 +173,15 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////
 	// RESPONSE DATA SENT BACK TO CLIENT
-	//
-	// INT CODE = 200 OK
-	// INT CODE = 404 ERROR NOT FOUND
-	// FULL LIST: https://en.wikipedia.org/wiki/List_of_HTTP_status_codes
-	//
-	// CONTENT TYPE = "text/plain"
-	// CONTENT TYPE = "text/html"
+	// EX: CONTENT TYPE = "text/plain"
+	// EX: CONTENT TYPE = "text/html"
 	////////////////////////////////////////////////////////////////////////////
 
-	void send(int code, const char* content_type = NULL, const String& content = String(""));
-	void send(int code, char* content_type, const String& content);
-	void send(int code, const String& content_type, const String& content);
-	void send_P(int code, PGM_P content_type, PGM_P content);
-	void send_P(int code, PGM_P content_type, PGM_P content, size_t contentLength);
+	void send(HTTPStatus code, const char* content_type = NULL, const String& content = String(""));
+	void send(HTTPStatus code, char* content_type, const String& content);
+	void send(HTTPStatus code, const String& content_type, const String& content);
+	void send_P(HTTPStatus code, PGM_P content_type, PGM_P content);
+	void send_P(HTTPStatus code, PGM_P content_type, PGM_P content, size_t contentLength);
 
 	void setContentLength(const size_t contentLength);
 	void sendHeader(const String& name, const String& value, bool first = false);
@@ -204,6 +199,9 @@ public:
 
 
 
+
+
+
 protected:
 	virtual size_t _currentClientWrite(const char* b, size_t l) {
 		return _currentClient.write( b, l );
@@ -217,15 +215,11 @@ protected:
 	void _addRequestHandler(RequestHandler* handler);
 	void _handleRequest();
 	void _finalizeResponse();
-	int _parseRequest(WiFiClient& client);
-	static String _responseCodeToString(int code);
-//	bool _parseForm(WiFiClient& client, String boundary, uint32_t len);
-//	bool _parseFormUploadAborted();
-//	void _uploadWriteByte(uint8_t b);
-//	uint8_t _uploadReadByte(WiFiClient& client);
+	HTTPStatus _parseRequest(WiFiClient& client);
+	static String _responseCodeToString(HTTPStatus code);
 
 	//THIS IS A RESPONSE HEADER, NOT A REQUEST HEADER
-	void _prepareHeader(String& response, int code, const char* content_type, size_t contentLength);
+	void _prepareHeader(String& response, HTTPStatus code, const char* content_type, size_t contentLength);
 
 	void _streamFileCore(const size_t fileSize, const String & fileName, const String & contentType);
 
@@ -234,15 +228,34 @@ protected:
 	String _extractParam(String& authReq, const String& param, const char delimit='"');
 
 
-	// BUFFER IS THE ALLOCATED BUFFER
-	// METHOD, PATH, AND VERSIONS ARE ALL POINTERS WITHIN THE SINGLE ALLOCATED BUFFER
-	char *_requestPath;
-	char *_requestVersion;
 
 	void resetRequest();
 
-	int _statusCode;
 
+
+private:
+	HTTPStatus	_readStream(WiFiClient &client);
+	HTTPStatus	_parseVersion(char *buffer);
+	HTTPMethod	_parseMethod(const char *method);
+
+
+
+protected:
+	////////////////////////////////////////////////////////////////////////////
+	//MEMBER VARIABLES
+	////////////////////////////////////////////////////////////////////////////
+
+
+	// BUFFER IS THE SINGLE ALLOCATED BUFFER _request
+	// METHOD, PATH, AND VERSIONS ARE ALL POINTERS WITHIN THE SINGLE ALLOCATED BUFFER
+	char *_requestMethod;
+	char *_requestPath;
+	char *_requestParams;
+	char *_requestVersion;
+	char *_requestPayload;
+
+
+	int _statusCode;
 
 	WiFiServer  _server;
 
@@ -258,8 +271,6 @@ protected:
 	THandlerFunction _notFoundHandler;
 	THandlerFunction _fileUploadHandler;
 
-//	int              _currentArgCount;
-//	RequestArgument* _currentArgs;
 	std::unique_ptr<HTTPUpload> _currentUpload;
 
 	size_t           _contentLength;
@@ -272,11 +283,20 @@ protected:
 	String           _srealm;  // Store the Auth realm between Calls
 
 
+	//HANDLE THE READ TIMEOUT
+	unsigned long	_readTimeout;
+	int				_readBytes;
 
+
+	//STORE POINTERS INTO RAW BUFFER FOR EACH HEADER KEY/VALUE
 	HTTPHeader		_headers;
+
+	//STORE POINTERS INTO RAW BUFFER FOR EACH GET/POST KEY/VALUE
 	HTTPParam		_params;
 
 private:
+
+	//RAW BINARY BUFFER FROM CLIENT
 	char			*_request;
 };
 

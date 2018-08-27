@@ -41,8 +41,9 @@ class HTTPValue {
 	// PROCESS THE BUFFER
 	////////////////////////////////////////////////////////////////////////////
 	char *process(char *buffer, bool clear=true) {
+		auto id = (clear ? 0 : total());
 		allocate(_count(buffer), clear);
-		return _parse(buffer);
+		return _parse(buffer, id);
 	}
 
 
@@ -238,13 +239,13 @@ class HTTPValue {
 	// STATIC VERSION OF SETTING THE VALUE
 	////////////////////////////////////////////////////////////////////////////
 	inline void set(int id, const char *key, const char *value=nullptr) {
-		Serial.print("ID: (");
+		Serial.print(F("ID: ("));
 		Serial.print(id);
-		Serial.print(") - Key: (");
+		Serial.print(F(") - Key: ("));
 		Serial.print(key);
-		Serial.print(") Value: (");
+		Serial.print(F(") Value: ("));
 		Serial.print(value);
-		Serial.println(")");
+		Serial.println(F(")"));
 
 		auto item = get(id);
 		if (item) {
@@ -286,7 +287,7 @@ class HTTPValue {
 	// PARSE AND TOKENIZE THE BUFFER
 	////////////////////////////////////////////////////////////////////////////
 	protected:
-	virtual char *_parse(char *buffer) = 0;
+	virtual char *_parse(char *buffer, int id=0) = 0;
 
 
 

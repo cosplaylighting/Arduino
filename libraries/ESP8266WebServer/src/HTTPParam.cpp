@@ -9,7 +9,7 @@
 // CALCULATE THE TOTAL NUMBER OF HEADER ROWS
 ////////////////////////////////////////////////////////////////////////////////
 int HTTPParam::_count(const char *buffer) const {
-	if (buffer == nullptr  ||  *buffer == NULL) return 0;
+	if (buffer == nullptr  ||  *buffer == '\0') return 0;
 
 	int total = 1;
 
@@ -27,18 +27,17 @@ int HTTPParam::_count(const char *buffer) const {
 ////////////////////////////////////////////////////////////////////////////////
 // PARSE AND TOKENIZE THE BUFFER
 ////////////////////////////////////////////////////////////////////////////////
-char *HTTPParam::_parse(char *buffer) {
-	if (buffer == nullptr) return buffer;
+char *HTTPParam::_parse(char *buffer, int id) {
+	if (buffer == nullptr  ||  *buffer == '\0') return buffer;
 
 	char	*param_key		= buffer;
 	char	*param_value	= nullptr;
-	int		 id				= 0;
 
 	while (true) {
-		if (*buffer == '&'  ||  *buffer == NULL) {
-			bool end = (*buffer == NULL);
+		if (*buffer == '&'  ||  *buffer == '\0') {
+			bool end = (*buffer == '\0');
 
-			*buffer++ = NULL;
+			*buffer++ = '\0';
 
 			set(id++, _decode(param_key), _decode(param_value));
 
@@ -48,7 +47,7 @@ char *HTTPParam::_parse(char *buffer) {
 			param_value	= nullptr;
 
 		} else if (*buffer == '='  &&  param_value == nullptr) {
-			*buffer++ = NULL;
+			*buffer++ = '\0';
 			param_value = buffer;
 
 		} else {
@@ -83,7 +82,7 @@ char *HTTPParam::_decode(char *buffer) {
 				src += 2;
 
 				*dst = (char) strtol(temp, nullptr, 16);
-				if (*dst == NULL) *dst = ' ';
+				if (*dst == '\0') *dst = ' ';
 			break;
 
 
@@ -102,7 +101,7 @@ char *HTTPParam::_decode(char *buffer) {
 
 
 finished:
-	*dst = NULL;
+	*dst = '\0';
 
 	return buffer;
 }

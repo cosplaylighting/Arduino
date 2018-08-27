@@ -274,15 +274,33 @@ void ESP8266WebServer::requestAuthentication(HTTPAuthMethod mode, const char* re
 	} else {
 		_srealm = String(realm);
 	}
+
 	if(mode == BASIC_AUTH) {
-		sendHeader(String(FPSTR(WWW_Authenticate)), String(F("Basic realm=\"")) + _srealm + String(F("\"")));
+		sendHeader(
+			String(FPSTR(WWW_Authenticate)),
+			String(F("Basic realm=\"")) + _srealm + String(F("\""))
+		);
+
 	} else {
 		_snonce=_getRandomHexString();
 		_sopaque=_getRandomHexString();
-		sendHeader(String(FPSTR(WWW_Authenticate)), String(F("Digest realm=\"")) +_srealm + String(F("\", qop=\"auth\", nonce=\"")) + _snonce + String(F("\", opaque=\"")) + _sopaque + String(F("\"")));
+
+		sendHeader(
+			String(FPSTR(WWW_Authenticate)),
+			String(
+				F("Digest realm=\""))
+				+ _srealm
+				+ String(F("\", qop=\"auth\", nonce=\""))
+				+ _snonce
+				+ String(F("\", opaque=\""))
+				+ _sopaque
+				+ String(F("\"")
+			)
+		);
 	}
+
 	using namespace mime;
-	send(401, String(FPSTR(mimeTable[html].mimeType)), authFailMsg);
+	send(HTTP_UNAUTHORIZED, String(FPSTR(mimeTable[html].mimeType)), authFailMsg);
 }
 
 
@@ -384,7 +402,7 @@ void ESP8266WebServer::handleClient() {
 			// Wait for data from client to become available
 			if (_currentClient.available()) {
 				auto status = _parseRequest(_currentClient);
-				if (status == 200) {
+				if (status == HTTP_OK) {
 					_currentClient.setTimeout(HTTP_MAX_SEND_WAIT);
 					_contentLength = CONTENT_LENGTH_NOT_SET;
 					_handleRequest();
@@ -486,7 +504,7 @@ void ESP8266WebServer::setContentLength(const size_t contentLength) {
 ////////////////////////////////////////////////////////////////////////////////
 // ??
 ////////////////////////////////////////////////////////////////////////////////
-void ESP8266WebServer::_prepareHeader(String& response, int code, const char* content_type, size_t contentLength) {
+void ESP8266WebServer::_prepareHeader(String& response, HTTPStatus code, const char* content_type, size_t contentLength) {
 	response = String(F("HTTP/1.")) + String(_currentVersion) + ' ';
 	response += String(code);
 	response += ' ';
@@ -525,10 +543,10 @@ void ESP8266WebServer::_prepareHeader(String& response, int code, const char* co
 ////////////////////////////////////////////////////////////////////////////////
 // ??
 ////////////////////////////////////////////////////////////////////////////////
-void ESP8266WebServer::send(int code, const char* content_type, const String& content) {
+void ESP8266WebServer::send(HTTPStatus code, const char* content_type, const String& content) {
 	String header;
 	// Can we asume the following?
-	//if(code == 200 && content.length() == 0 && _contentLength == CONTENT_LENGTH_NOT_SET)
+	//if(code == HTTP_OK && content.length() == 0 && _contentLength == CONTENT_LENGTH_NOT_SET)
 	//  _contentLength = CONTENT_LENGTH_UNKNOWN;
 	_prepareHeader(header, code, content_type, content.length());
 	_currentClientWrite(header.c_str(), header.length());
@@ -543,7 +561,7 @@ void ESP8266WebServer::send(int code, const char* content_type, const String& co
 ////////////////////////////////////////////////////////////////////////////////
 // ??
 ////////////////////////////////////////////////////////////////////////////////
-void ESP8266WebServer::send_P(int code, PGM_P content_type, PGM_P content) {
+void ESP8266WebServer::send_P(HTTPStatus code, PGM_P content_type, PGM_P content) {
 	size_t contentLength = 0;
 
 	if (content != NULL) {
@@ -564,7 +582,7 @@ void ESP8266WebServer::send_P(int code, PGM_P content_type, PGM_P content) {
 ////////////////////////////////////////////////////////////////////////////////
 // ??
 ////////////////////////////////////////////////////////////////////////////////
-void ESP8266WebServer::send_P(int code, PGM_P content_type, PGM_P content, size_t contentLength) {
+void ESP8266WebServer::send_P(HTTPStatus code, PGM_P content_type, PGM_P content, size_t contentLength) {
 	String header;
 	char type[64];
 	memccpy_P((void*)type, (PGM_VOID_P)content_type, 0, sizeof(type));
@@ -579,7 +597,7 @@ void ESP8266WebServer::send_P(int code, PGM_P content_type, PGM_P content, size_
 ////////////////////////////////////////////////////////////////////////////////
 // ??
 ////////////////////////////////////////////////////////////////////////////////
-void ESP8266WebServer::send(int code, char* content_type, const String& content) {
+void ESP8266WebServer::send(HTTPStatus code, char *content_type, const String &content) {
 	send(code, (const char*)content_type, content);
 }
 
@@ -589,7 +607,7 @@ void ESP8266WebServer::send(int code, char* content_type, const String& content)
 ////////////////////////////////////////////////////////////////////////////////
 // ??
 ////////////////////////////////////////////////////////////////////////////////
-void ESP8266WebServer::send(int code, const String& content_type, const String& content) {
+void ESP8266WebServer::send(HTTPStatus code, const String &content_type, const String &content) {
 	send(code, (const char*)content_type.c_str(), content);
 }
 
@@ -669,65 +687,9 @@ void ESP8266WebServer::_streamFileCore(const size_t fileSize, const String & fil
 			contentType != String(FPSTR(mimeTable[none].mimeType))) {
 		sendHeader(F("Content-Encoding"), F("gzip"));
 	}
-	send(200, contentType, "");
+	send(HTTP_OK, contentType, "");
 }
 
-
-
-/*
-////////////////////////////////////////////////////////////////////////////////
-// ??
-////////////////////////////////////////////////////////////////////////////////
-const char *ESP8266WebServer::arg(const char *name) const {
-	if (!name  ||  !*name) return "";
-	for (int i=0; i<_currentArgCount; i++) {
-		if (!strcmp(_currentArgs[i].key, name)) {
-			return _currentArgs[i].value;
-		}
-	}
-	return "";
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// ??
-////////////////////////////////////////////////////////////////////////////////
-const char *ESP8266WebServer::arg(int i) const {
-	return (i < _currentArgCount)
-		? _currentArgs[i].value
-		: "";
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// ??
-////////////////////////////////////////////////////////////////////////////////
-const char *ESP8266WebServer::argName(int i) const {
-	return (i < _currentArgCount)
-		? _currentArgs[i].key
-		: "";
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// ??
-////////////////////////////////////////////////////////////////////////////////
-bool ESP8266WebServer::hasArg(const char *name) const {
-	if (!name  ||  !*name) return false;
-	for (int i=0; i<_currentArgCount; i++) {
-		if (!strcmp(_currentArgs[i].key, name)) {
-			return true;
-		}
-	}
-	return false;
-}
-*/
 
 
 
@@ -775,7 +737,7 @@ void ESP8266WebServer::_handleRequest() {
 	}
 	if (!handled) {
 		using namespace mime;
-		send(404, String(FPSTR(mimeTable[html].mimeType)), String(F("Not found: ")) + _requestPath);
+		send(HTTP_NOT_FOUND, String(FPSTR(mimeTable[html].mimeType)), String(F("Not found: ")) + _requestPath);
 		handled = true;
 	}
 	if (handled) {
@@ -802,55 +764,55 @@ void ESP8266WebServer::_finalizeResponse() {
 ////////////////////////////////////////////////////////////////////////////////
 // ??
 ////////////////////////////////////////////////////////////////////////////////
-String ESP8266WebServer::_responseCodeToString(int code) {
+String ESP8266WebServer::_responseCodeToString(HTTPStatus code) {
 	switch (code) {
-		case 100: return F("Continue");
-		case 101: return F("Switching Protocols");
-		case 200: return F("OK");
-		case 201: return F("Created");
-		case 202: return F("Accepted");
-		case 203: return F("Non-Authoritative Information");
-		case 204: return F("No Content");
-		case 205: return F("Reset Content");
-		case 206: return F("Partial Content");
-		case 226: return F("IM Used");
-		case 300: return F("Multiple Choices");
-		case 301: return F("Moved Permanently");
-		case 302: return F("Found");
-		case 303: return F("See Other");
-		case 304: return F("Not Modified");
-		case 305: return F("Use Proxy");
-		case 306: return F("Switch Proxy");
-		case 307: return F("Temporary Redirect");
-		case 308: return F("Permanent Redirect");
-		case 400: return F("Bad Request");
-		case 401: return F("Unauthorized");
-		case 402: return F("Payment Required");
-		case 403: return F("Forbidden");
-		case 404: return F("Not Found");
-		case 405: return F("Method Not Allowed");
-		case 406: return F("Not Acceptable");
-		case 407: return F("Proxy Authentication Required");
-		case 408: return F("Request Timeout");
-		case 409: return F("Conflict");
-		case 410: return F("Gone");
-		case 411: return F("Length Required");
-		case 412: return F("Precondition Failed");
-		case 413: return F("Payload Too Large");
-		case 414: return F("URI Too Long");
-		case 415: return F("Unsupported Media Type");
-		case 416: return F("Range Not Satisfiable");
-		case 417: return F("Expectation Failed");
-		case 418: return F("I'm a teapot");
-		case 421: return F("Misdirected Request");
-		case 429: return F("Too Many Requests");
-		case 431: return F("Request Header Fields Too Large");
-		case 500: return F("Internal Server Error");
-		case 501: return F("Not Implemented");
-		case 502: return F("Bad Gateway");
-		case 503: return F("Service Unavailable");
-		case 504: return F("Gateway Time-out");
-		case 505: return F("HTTP Version not supported");
+		case HTTP_CONTINUE:				return F("Continue");
+		case HTTP_SWITCH_PROTO:			return F("Switching Protocols");
+		case HTTP_OK:					return F("OK");
+		case HTTP_CREATED:				return F("Created");
+		case HTTP_ACCEPTED:				return F("Accepted");
+		case HTTP_NON_AUTH_INFO:		return F("Non-Authoritative Information");
+		case HTTP_NO_CONTENT:			return F("No Content");
+		case HTTP_RESET_CONTENT:		return F("Reset Content");
+		case HTTP_PARTIAL_CONTENT:		return F("Partial Content");
+		case HTTP_IM_USED:				return F("IM Used");
+		case HTTP_MULTIPLE_CHOICE:		return F("Multiple Choices");
+		case HTTP_MOVED_PERM:			return F("Moved Permanently");
+		case HTTP_FOUND:				return F("Found");
+		case HTTP_SEE_OTHER:			return F("See Other");
+		case HTTP_NOT_MODIFIED:			return F("Not Modified");
+		case HTTP_USE_PROXY:			return F("Use Proxy");
+		case HTTP_SWITCH_PROXY:			return F("Switch Proxy");
+		case HTTP_TEMP_REDIRECT:		return F("Temporary Redirect");
+		case HTTP_PERM_REDIRECT:		return F("Permanent Redirect");
+		case HTTP_BAD_REQUEST:			return F("Bad Request");
+		case HTTP_UNAUTHORIZED:			return F("Unauthorized");
+		case HTTP_PAYMENT_REQ:			return F("Payment Required");
+		case HTTP_FORBIDDEN:			return F("Forbidden");
+		case HTTP_NOT_FOUND:			return F("Not Found");
+		case HTTP_NOT_ALLOWED:			return F("Method Not Allowed");
+		case HTTP_NOT_ACCEPTABLE:		return F("Not Acceptable");
+		case HTTP_PROXY_AUTH_REQ:		return F("Proxy Authentication Required");
+		case HTTP_TIMEOUT:				return F("Request Timeout");
+		case HTTP_CONFLICT:				return F("Conflict");
+		case HTTP_GONE:					return F("Gone");
+		case HTTP_LENGTH_REQ:			return F("Length Required");
+		case HTTP_PRECON_FAIL:			return F("Precondition Failed");
+		case HTTP_PAYLOAD_LARGE:		return F("Payload Too Large");
+		case HTTP_URI_LARGE:			return F("URI Too Long");
+		case HTTP_UNSUPPORT_MEDIA:		return F("Unsupported Media Type");
+		case HTTP_RANGE_ERROR:			return F("Range Not Satisfiable");
+		case HTTP_EXPECATION_FAIL:		return F("Expectation Failed");
+		case HTTP_TEAPOT:				return F("I'm a teapot");
+		case HTTP_MISDIRECT_REQUEST:	return F("Misdirected Request");
+		case HTTP_TOO_MANY_REQUEST:		return F("Too Many Requests");
+		case HTTP_REQUEST_LARGE:		return F("Request Header Fields Too Large");
+		case HTTP_SERVER_ERROR:			return F("Internal Server Error");
+		case HTTP_NOT_IMPLEMENTED:		return F("Not Implemented");
+		case HTTP_BAD_GATEWAY:			return F("Bad Gateway");
+		case HTTP_UNAVAILABLE:			return F("Service Unavailable");
+		case HTTP_GATEWAY_TIMEOUT:		return F("Gateway Time-out");
+		case HTTP_VERSION_UNSUPPORTED:	return F("HTTP Version not supported");
 	}
 
 	return F("");
