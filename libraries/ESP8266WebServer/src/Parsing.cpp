@@ -44,7 +44,7 @@ Global variables use 38732 bytes (47%) of dynamic memory, leaving 43188 bytes fo
 #include "ESP8266WebServer.h"
 #include "detail/mimetable.h"
 
-#define DEBUG_ESP_HTTP_SERVER
+//#define DEBUG_ESP_HTTP_SERVER
 #ifdef DEBUG_ESP_PORT
 #define DEBUG_OUTPUT DEBUG_ESP_PORT
 #else
