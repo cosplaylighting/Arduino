@@ -172,9 +172,9 @@ bool ESP8266WebServer::authenticate(const char * username, const char * password
 			delete[] encoded;
 		} else if (authReq.startsWith(F("Digest"))) {
 			authReq = authReq.substring(7);
-			#ifdef DEBUG_ESP_HTTP_SERVER
-			DEBUG_OUTPUT.println(authReq);
-			#endif
+#			ifdef DEBUG_ESP_HTTP_SERVER
+				DEBUG_OUTPUT.println(authReq);
+#			endif
 			String _username = _extractParam(authReq,F("username=\""));
 			if (!_username.length() || _username != String(username)) {
 				authReq = "";
@@ -206,9 +206,9 @@ bool ESP8266WebServer::authenticate(const char * username, const char * password
 			md5.add(String(username) + ':' + _realm + ':' + String(password));  // md5 of the user:realm:user
 			md5.calculate();
 			String _H1 = md5.toString();
-			#ifdef DEBUG_ESP_HTTP_SERVER
-			DEBUG_OUTPUT.println("Hash of user:realm:pass=" + _H1);
-			#endif
+#			ifdef DEBUG_ESP_HTTP_SERVER
+				DEBUG_OUTPUT.println("Hash of user:realm:pass=" + _H1);
+#			endif
 			md5.begin();
 			if(_method == HTTP_GET){
 				md5.add(String(F("GET:")) + _uri);
@@ -223,9 +223,9 @@ bool ESP8266WebServer::authenticate(const char * username, const char * password
 			}
 			md5.calculate();
 			String _H2 = md5.toString();
-			#ifdef DEBUG_ESP_HTTP_SERVER
-			DEBUG_OUTPUT.println("Hash of GET:uri=" + _H2);
-			#endif
+#			ifdef DEBUG_ESP_HTTP_SERVER
+				DEBUG_OUTPUT.println("Hash of GET:uri=" + _H2);
+#			endif
 			md5.begin();
 			if(authReq.indexOf(FPSTR(qop_auth)) != -1) {
 				md5.add(_H1 + ':' + _nonce + ':' + _nc + ':' + _cnonce + F(":auth:") + _H2);
@@ -234,9 +234,9 @@ bool ESP8266WebServer::authenticate(const char * username, const char * password
 			}
 			md5.calculate();
 			String _responsecheck = md5.toString();
-			#ifdef DEBUG_ESP_HTTP_SERVER
-			DEBUG_OUTPUT.println("The Proper response=" +_responsecheck);
-			#endif
+#			ifdef DEBUG_ESP_HTTP_SERVER
+				DEBUG_OUTPUT.println("The Proper response=" +_responsecheck);
+#			endif
 			if(_response == _responsecheck){
 				authReq = "";
 				return true;
