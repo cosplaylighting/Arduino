@@ -74,7 +74,10 @@ class HTTPValue {
 		HTTPKeyValue *tmp	 = items;
 		items				 = (HTTPKeyValue*) realloc(items, size);
 
-		if (items) {
+		if (!size) {
+			items = nullptr;
+			
+		} else if (items) {
 			for (auto i=count; i<total; i++) {
 				items[i].key	= nullptr;
 				items[i].value	= nullptr;
